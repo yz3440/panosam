@@ -59,7 +59,8 @@ class SAM3Engine:
         threshold: float = 0.5,
         mask_threshold: float = 0.5,
         simplify_tolerance: float = 0.005,
-    ) -> List[FlatMaskResult]:
+        return_raw_masks: bool = False,
+    ) -> List[FlatMaskResult] | Tuple[List[FlatMaskResult], List[np.ndarray]]:
         """Segment objects in an image using a text prompt.
         
         Args:
@@ -68,9 +69,11 @@ class SAM3Engine:
             threshold: Confidence threshold for detections (0-1).
             mask_threshold: Threshold for binary mask generation (0-1).
             simplify_tolerance: Tolerance for polygon simplification (0-1).
+            return_raw_masks: If True, also return raw binary masks for visualization.
             
         Returns:
             List of FlatMaskResult objects containing segmentation masks.
+            If return_raw_masks=True, returns tuple of (flat_results, raw_masks).
         """
         # Ensure RGB
         if image.mode != "RGB":
@@ -99,6 +102,7 @@ class SAM3Engine:
         
         # Convert to FlatMaskResult
         flat_results = []
+        raw_masks = []
         masks = results.get("masks", [])
         scores = results.get("scores", [])
         
@@ -121,7 +125,11 @@ class SAM3Engine:
             
             if len(flat_result.polygon) >= 3:  # Only include valid polygons
                 flat_results.append(flat_result)
+                if return_raw_masks:
+                    raw_masks.append(mask_np)
         
+        if return_raw_masks:
+            return flat_results, raw_masks
         return flat_results
     
     def segment_with_boxes(

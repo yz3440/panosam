@@ -154,7 +154,7 @@ def initialize_wideangle_perspectives() -> List[PerspectiveMetadata]:
     interval = 360 / yaw_offset_count
     for k in range(yaw_offset_count):
         yaw_angle_offsets.append(k * interval - 180)
-    pitch_angle_offsets = [0]
+    pitch_angle_offsets = [-30, 30]
 
     for yaw_angle_offset in yaw_angle_offsets:
         for pitch_angle_offset in pitch_angle_offsets:

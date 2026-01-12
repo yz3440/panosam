@@ -4,10 +4,89 @@ import math
 import numpy as np
 
 
+def _perspective_to_sphere(
+    u: float,
+    v: float,
+    horizontal_fov: float,
+    vertical_fov: float,
+    yaw_offset: float,
+    pitch_offset: float,
+) -> Tuple[float, float]:
+    """Convert perspective image coordinates to spherical coordinates.
+
+    Uses proper 3D rotation to handle camera orientation correctly.
+    This is the inverse of py360convert's e2p transformation.
+
+    Args:
+        u: Horizontal coordinate (0-1, left to right).
+        v: Vertical coordinate (0-1, top to bottom).
+        horizontal_fov: Horizontal field of view in degrees.
+        vertical_fov: Vertical field of view in degrees.
+        yaw_offset: Camera yaw (horizontal rotation) in degrees.
+        pitch_offset: Camera pitch (vertical rotation) in degrees.
+
+    Returns:
+        Tuple of (yaw, pitch) in degrees, where:
+        - yaw: -180 to 180 (left to right in equirectangular)
+        - pitch: -90 to 90 (bottom to top)
+    """
+    # Convert to centered coordinates (-0.5 to 0.5)
+    # x: positive = right, y: positive = up
+    x = u - 0.5
+    y = 0.5 - v
+
+    # Calculate 3D direction vector in camera's local frame
+    # Camera looks along +Z axis, X is right, Y is up
+    # The image plane is at Z=1, with extent based on FOV
+    half_h_fov = math.radians(horizontal_fov) / 2
+    half_v_fov = math.radians(vertical_fov) / 2
+
+    # Direction in camera local coordinates
+    X_local = x * 2 * math.tan(half_h_fov)
+    Y_local = y * 2 * math.tan(half_v_fov)
+    Z_local = 1.0
+
+    # Normalize to unit vector
+    r = math.sqrt(X_local**2 + Y_local**2 + Z_local**2)
+    X_local /= r
+    Y_local /= r
+    Z_local /= r
+
+    # Rotate by camera orientation to get world coordinates
+    # Order: first pitch (rotation around X), then yaw (rotation around Y)
+    pitch_rad = math.radians(pitch_offset)
+    yaw_rad = math.radians(yaw_offset)
+
+    cos_pitch = math.cos(pitch_rad)
+    sin_pitch = math.sin(pitch_rad)
+    cos_yaw = math.cos(yaw_rad)
+    sin_yaw = math.sin(yaw_rad)
+
+    # Rotation by pitch (around X axis)
+    # This tilts the view up/down
+    # For positive pitch (looking up), forward direction rotates toward +Y
+    X_pitched = X_local
+    Y_pitched = Y_local * cos_pitch + Z_local * sin_pitch
+    Z_pitched = -Y_local * sin_pitch + Z_local * cos_pitch
+
+    # Rotation by yaw (around Y axis)
+    # This pans the view left/right
+    X_world = X_pitched * cos_yaw + Z_pitched * sin_yaw
+    Y_world = Y_pitched
+    Z_world = -X_pitched * sin_yaw + Z_pitched * cos_yaw
+
+    # Convert world direction to spherical coordinates
+    # yaw = atan2(X, Z), pitch = asin(Y)
+    world_yaw = math.degrees(math.atan2(X_world, Z_world))
+    world_pitch = math.degrees(math.asin(np.clip(Y_world, -1.0, 1.0)))
+
+    return world_yaw, world_pitch
+
+
 @dataclass
 class FlatMaskResult:
     """A segmentation mask result in flat/perspective image coordinates.
-    
+
     Attributes:
         polygon: List of (x, y) tuples representing the mask contour in normalized
                  coordinates (0-1 range, where 0,0 is top-left).
@@ -15,39 +94,11 @@ class FlatMaskResult:
         label: Optional text label for the segmented object.
         mask_id: Optional unique identifier for this mask.
     """
+
     polygon: List[Tuple[float, float]]
     score: float
     label: Optional[str] = None
     mask_id: Optional[str] = None
-
-    def __uv_to_yaw_pitch(
-        self, horizontal_fov: float, vertical_fov: float, u: float, v: float
-    ) -> Tuple[float, float]:
-        """Convert UV coordinate to yaw and pitch.
-        
-        Args:
-            horizontal_fov: Horizontal field of view in degrees.
-            vertical_fov: Vertical field of view in degrees.
-            u: Horizontal coordinate (0-1, left to right).
-            v: Vertical coordinate (0-1, top to bottom).
-            
-        Returns:
-            Tuple of (yaw, pitch) in degrees.
-        """
-        if horizontal_fov is None or vertical_fov is None or u is None or v is None:
-            raise ValueError("Missing parameters")
-
-        if horizontal_fov < 0 or vertical_fov < 0:
-            raise ValueError("FOV must be positive")
-
-        # Translate the origin to the center of the image
-        u = u - 0.5
-        v = 0.5 - v
-
-        yaw = math.atan2(2 * u * math.tan(math.radians(horizontal_fov) / 2), 1)
-        pitch = math.atan2(2 * v * math.tan(math.radians(vertical_fov) / 2), 1)
-
-        return math.degrees(yaw), math.degrees(pitch)
 
     def to_sphere(
         self,
@@ -57,13 +108,16 @@ class FlatMaskResult:
         pitch_offset: float,
     ) -> "SphereMaskResult":
         """Convert flat mask result to spherical coordinates.
-        
+
+        Uses proper 3D rotation to accurately map perspective image coordinates
+        to equirectangular spherical coordinates.
+
         Args:
             horizontal_fov: Horizontal field of view in degrees.
             vertical_fov: Vertical field of view in degrees.
             yaw_offset: Horizontal offset of the perspective in degrees.
             pitch_offset: Vertical offset of the perspective in degrees.
-            
+
         Returns:
             SphereMaskResult with polygon in spherical coordinates.
         """
@@ -80,8 +134,10 @@ class FlatMaskResult:
         # Convert each polygon vertex to spherical coordinates
         sphere_polygon = []
         for u, v in self.polygon:
-            yaw, pitch = self.__uv_to_yaw_pitch(horizontal_fov, vertical_fov, u, v)
-            sphere_polygon.append((yaw + yaw_offset, pitch + pitch_offset))
+            yaw, pitch = _perspective_to_sphere(
+                u, v, horizontal_fov, vertical_fov, yaw_offset, pitch_offset
+            )
+            sphere_polygon.append((yaw, pitch))
 
         # Calculate centroid for the result
         if len(sphere_polygon) > 0:
@@ -119,47 +175,47 @@ class FlatMaskResult:
         simplify_tolerance: float = 0.001,
     ) -> "FlatMaskResult":
         """Create a FlatMaskResult from a binary mask.
-        
+
         Args:
             mask: Binary mask as numpy array (H, W) with values 0 or 1/255.
             score: Confidence score for this mask.
             label: Optional text label.
             mask_id: Optional unique identifier.
             simplify_tolerance: Tolerance for polygon simplification (0-1).
-            
+
         Returns:
             FlatMaskResult with normalized polygon coordinates.
         """
         import cv2
-        
+
         # Ensure mask is uint8
         if mask.dtype != np.uint8:
             mask = (mask > 0.5).astype(np.uint8) * 255
-        
+
         # Find contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+
         if len(contours) == 0:
             return cls(polygon=[], score=score, label=label, mask_id=mask_id)
-        
+
         # Get the largest contour
         largest_contour = max(contours, key=cv2.contourArea)
-        
+
         # Simplify the contour
         epsilon = simplify_tolerance * cv2.arcLength(largest_contour, True)
         simplified = cv2.approxPolyDP(largest_contour, epsilon, True)
-        
+
         # Convert to normalized coordinates (0-1)
         h, w = mask.shape[:2]
         polygon = [(float(pt[0][0]) / w, float(pt[0][1]) / h) for pt in simplified]
-        
+
         return cls(polygon=polygon, score=score, label=label, mask_id=mask_id)
 
 
 @dataclass
 class SphereMaskResult:
     """A segmentation mask result in spherical/panoramic coordinates.
-    
+
     Attributes:
         polygon: List of (yaw, pitch) tuples in degrees representing the mask contour.
         score: Confidence score for this mask (0-1).
@@ -168,6 +224,7 @@ class SphereMaskResult:
         center_yaw: Yaw of the polygon centroid in degrees.
         center_pitch: Pitch of the polygon centroid in degrees.
     """
+
     polygon: List[Tuple[float, float]]
     score: float
     label: Optional[str] = None
@@ -200,27 +257,27 @@ class SphereMaskResult:
 
     def get_bounding_box(self) -> Tuple[float, float, float, float]:
         """Get the bounding box of the polygon.
-        
+
         Returns:
             Tuple of (min_yaw, min_pitch, max_yaw, max_pitch) in degrees.
         """
         if len(self.polygon) == 0:
             return (0, 0, 0, 0)
-        
+
         yaws = [p[0] for p in self.polygon]
         pitches = [p[1] for p in self.polygon]
-        
+
         return (min(yaws), min(pitches), max(yaws), max(pitches))
 
     def get_area_estimate(self) -> float:
         """Estimate the area of the polygon using the shoelace formula.
-        
+
         Returns:
             Estimated area in square degrees.
         """
         if len(self.polygon) < 3:
             return 0.0
-        
+
         # Shoelace formula
         n = len(self.polygon)
         area = 0.0
@@ -228,5 +285,5 @@ class SphereMaskResult:
             j = (i + 1) % n
             area += self.polygon[i][0] * self.polygon[j][1]
             area -= self.polygon[j][0] * self.polygon[i][1]
-        
+
         return abs(area) / 2.0
