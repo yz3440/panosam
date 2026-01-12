@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Preview | PanoSAM - Panoramic Segmentation Results</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  </head>
+  <body
+    class="m-0 overflow-hidden font-mono flex flex-row h-screen text-white bg-gray-900"
+  >
+    <div id="container" class="flex flex-row">
+      <div id="info-container" class="flex flex-col m-8 w-96">
+        <h1 class="text-xl font-bold mb-2 mx-auto">
+          PanoSAM Preview
+        </h1>
+
+        <p class="mb-4">
+          Preview segmentation results on an equirectangular panorama.
+          Drag and drop a panorama image and its corresponding JSON results.
+        </p>
+
+        <p class="mb-2">Expected JSON format:</p>
+        <pre class="text-xs m-2 bg-gray-800 p-2 rounded mb-4 overflow-auto max-h-40">
+{
+  "prompt": "car",
+  "masks": [
+    {
+      "polygon": [[yaw, pitch], ...],
+      "score": 0.95,
+      "label": "car",
+      "center_yaw": 45.2,
+      "center_pitch": -5.3
+    }
+  ]
+}</pre>
+        <div
+          id="dropZone"
+          class="relative w-full h-64 border-2 border-dashed border-white flex flex-col justify-center items-center text-white text-center bg-black bg-opacity-50 text-xs z-10 hover:bg-opacity-70 cursor-pointer"
+        >
+          <div class="absolute top-0 mt-4">
+            <p>Panorama (PNG/JPEG)</p>
+            <p>Segmentation Results (JSON)</p>
+          </div>
+
+          <p class="mt-2 text-sm">Drag & Drop</p>
+
+          <p class="mt-2 text-sm">or</p>
+          <input type="file" id="fileInput" class="hidden" multiple />
+          <label
+            for="fileInput"
+            id="fileInputLabel"
+            class="bg-black bg-opacity-70 text-white p-2 rounded cursor-pointer mt-2 hover:bg-opacity-90"
+            >Open Files</label
+          >
+        </div>
+
+        <div id="results-info" class="mt-4 text-sm hidden">
+          <p class="font-bold mb-2">Loaded Results:</p>
+          <p id="prompt-text" class="text-yellow-400"></p>
+          <p id="mask-count" class="text-green-400"></p>
+        </div>
+
+        <div id="legend" class="mt-4 text-xs hidden">
+          <p class="font-bold mb-2">Legend:</p>
+          <div id="legend-items" class="flex flex-col gap-1"></div>
+        </div>
+      </div>
+      <div id="canvas-container" class="col-span-4 w-full h-full"></div>
+    </div>
+    <script>
+      let scene, camera, renderer, sphere, controls;
+      const minZoom = 0.7;
+      const maxZoom = 4;
+      let maskResults = [];
+      let raycaster, mouse;
+      const sphereRadius = 500;
+      const maskRadius = 400;
+
+      let zoom = 1;
+      function updateZoom() {
+        camera.fov = 75 / zoom;
+        camera.updateProjectionMatrix();
+      }
+      function onWheel(event) {
+        event.preventDefault();
+        const zoomSpeed = -0.05;
+        const delta = event.deltaY > 0 ? 1 : -1;
+        zoom = Math.max(minZoom, Math.min(zoom + delta * zoomSpeed, maxZoom));
+        updateZoom();
+      }
+      window.addEventListener('wheel', onWheel, { passive: false });
+
+      // Color palette for masks
+      const colorPalette = [
+        0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf9ca24, 0x6c5ce7,
+        0xa29bfe, 0xfd79a8, 0x00b894, 0xe17055, 0x74b9ff,
+        0xdfe6e9, 0xffeaa7, 0x81ecec, 0xfab1a0, 0x55a3ff
+      ];
+
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, 0, 0.1);
+        updateZoom();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document
+          .getElementById('canvas-container')
+          .appendChild(renderer.domElement);
+        renderer.domElement.style.pointerEvents = 'auto';
+        
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enablePan = true;
+        controls.rotateSpeed = -0.25;
+        controls.enableZoom = false;
+
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+
+        window.addEventListener('resize', onWindowResize, false);
+        renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        updateZoom();
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onMouseMove(event) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      }
+
+      function createPanorama(imageUrl) {
+        // Remove existing panorama
+        if (sphere) {
+          scene.remove(sphere);
+        }
+        
+        const geometry = new THREE.SphereGeometry(sphereRadius, 60, 40);
+        geometry.scale(-1, 1, 1);
+
+        const texture = new THREE.TextureLoader().load(imageUrl, () => {
+          renderer.render(scene, camera);
+        });
+
+        const material = new THREE.MeshBasicMaterial({ map: texture });
+        sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+      }
+
+      function sphericalToCartesian(yaw, pitch, radius) {
+        // Convert yaw/pitch (degrees) to 3D position
+        const phi = THREE.MathUtils.degToRad(90 - pitch);
+        const theta = THREE.MathUtils.degToRad(yaw);
+        
+        return new THREE.Vector3(
+          radius * Math.sin(phi) * Math.cos(theta),
+          radius * Math.cos(phi),
+          radius * Math.sin(phi) * Math.sin(theta)
+        );
+      }
+
+      function createPolygonMesh(polygon, color, opacity = 0.5) {
+        if (polygon.length < 3) return null;
+
+        // Convert polygon vertices to 3D points
+        const points3D = polygon.map(([yaw, pitch]) => 
+          sphericalToCartesian(180 + yaw, pitch, maskRadius)
+        );
+
+        // Create shape from projected 2D points
+        // We'll create a mesh by triangulating the polygon
+        const geometry = new THREE.BufferGeometry();
+        
+        // For simple polygons, use fan triangulation from centroid
+        const centroid = new THREE.Vector3();
+        points3D.forEach(p => centroid.add(p));
+        centroid.divideScalar(points3D.length);
+
+        const vertices = [];
+        const indices = [];
+        
+        // Add centroid as first vertex
+        vertices.push(centroid.x, centroid.y, centroid.z);
+        
+        // Add polygon vertices
+        points3D.forEach(p => {
+          vertices.push(p.x, p.y, p.z);
+        });
+
+        // Create triangles (fan from centroid)
+        for (let i = 1; i <= points3D.length; i++) {
+          const next = i === points3D.length ? 1 : i + 1;
+          indices.push(0, i, next);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: opacity,
+          side: THREE.DoubleSide,
+          depthTest: false,
+        });
+
+        return new THREE.Mesh(geometry, material);
+      }
+
+      function createPolygonOutline(polygon, color) {
+        if (polygon.length < 3) return null;
+
+        const points3D = polygon.map(([yaw, pitch]) => 
+          sphericalToCartesian(180 + yaw, pitch, maskRadius - 1)
+        );
+        
+        // Close the polygon
+        points3D.push(points3D[0].clone());
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(points3D);
+        const material = new THREE.LineBasicMaterial({ 
+          color: color,
+          linewidth: 2,
+          depthTest: false,
+        });
+
+        return new THREE.Line(geometry, material);
+      }
+
+      function createLabelSprite(text, score, color) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        const scale = 2;
+        const label = `${text} (${(score * 100).toFixed(0)}%)`;
+        
+        context.font = `Bold ${16 * scale}px Arial`;
+        const textWidth = context.measureText(label).width;
+        canvas.width = textWidth + 20 * scale;
+        canvas.height = 28 * scale;
+
+        // Background
+        context.fillStyle = `rgba(0, 0, 0, 0.7)`;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Border with mask color
+        context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+        context.lineWidth = 3 * scale;
+        context.strokeRect(0, 0, canvas.width, canvas.height);
+        
+        // Text
+        context.font = `Bold ${16 * scale}px Arial`;
+        context.fillStyle = 'white';
+        context.fillText(label, 10 * scale, 20 * scale);
+
+        const texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+
+        const spriteMaterial = new THREE.SpriteMaterial({
+          map: texture,
+          depthTest: false,
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(canvas.width / 8, canvas.height / 8, 1);
+        
+        return sprite;
+      }
+
+      function addMaskResults(data) {
+        // Clear existing masks
+        clearMasks();
+        
+        const masks = data.masks || data;
+        maskResults = Array.isArray(masks) ? masks : [];
+        
+        const legendItems = document.getElementById('legend-items');
+        legendItems.innerHTML = '';
+
+        maskResults.forEach((result, index) => {
+          const color = colorPalette[index % colorPalette.length];
+          const group = new THREE.Group();
+          group.userData.isMaskResult = true;
+          group.userData.index = index;
+
+          // Create filled polygon
+          const mesh = createPolygonMesh(result.polygon, color, 0.4);
+          if (mesh) {
+            group.add(mesh);
+          }
+
+          // Create outline
+          const outline = createPolygonOutline(result.polygon, color);
+          if (outline) {
+            group.add(outline);
+          }
+
+          // Create label at centroid
+          const label = result.label || `mask_${index}`;
+          const sprite = createLabelSprite(label, result.score, color);
+          const centroid = sphericalToCartesian(
+            180 + result.center_yaw,
+            result.center_pitch,
+            maskRadius - 10
+          );
+          sprite.position.copy(centroid);
+          group.add(sprite);
+
+          scene.add(group);
+
+          // Add to legend
+          const legendItem = document.createElement('div');
+          legendItem.className = 'flex items-center gap-2';
+          legendItem.innerHTML = `
+            <div class="w-4 h-4 rounded" style="background-color: #${color.toString(16).padStart(6, '0')}"></div>
+            <span>${label}: ${(result.score * 100).toFixed(0)}%</span>
+          `;
+          legendItems.appendChild(legendItem);
+        });
+
+        // Update info
+        document.getElementById('results-info').classList.remove('hidden');
+        document.getElementById('legend').classList.remove('hidden');
+        document.getElementById('prompt-text').textContent = `Prompt: "${data.prompt || 'unknown'}"`;
+        document.getElementById('mask-count').textContent = `Found: ${maskResults.length} mask(s)`;
+      }
+
+      function clearMasks() {
+        const toRemove = [];
+        scene.traverse((object) => {
+          if (object.userData && object.userData.isMaskResult) {
+            toRemove.push(object);
+          }
+        });
+        toRemove.forEach(obj => scene.remove(obj));
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        // Hover effect
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        // Reset all masks
+        scene.traverse((object) => {
+          if (object.userData && object.userData.isMaskResult) {
+            object.children.forEach(child => {
+              if (child instanceof THREE.Mesh && child.material) {
+                child.material.opacity = 0.4;
+              }
+            });
+          }
+        });
+
+        renderer.domElement.style.cursor = 'default';
+
+        for (let i = 0; i < intersects.length; i++) {
+          const obj = intersects[i].object;
+          let parent = obj.parent;
+          
+          while (parent) {
+            if (parent.userData && parent.userData.isMaskResult) {
+              // Highlight this mask
+              parent.children.forEach(child => {
+                if (child instanceof THREE.Mesh && child.material) {
+                  child.material.opacity = 0.7;
+                }
+              });
+              renderer.domElement.style.cursor = 'pointer';
+              break;
+            }
+            parent = parent.parent;
+          }
+          if (parent) break;
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      init();
+      animate();
+
+      // Drag and drop functionality
+      const dropZone = document.getElementById('dropZone');
+      const fileInput = document.getElementById('fileInput');
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        handleFiles(files);
+      });
+
+      function handleFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file.type.startsWith('image/')) {
+            handleImageDrop(file);
+          } else if (file.type === 'application/json' || file.name.endsWith('.json')) {
+            handleJSONDrop(file);
+          }
+        }
+      }
+
+      function handleImageDrop(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          createPanorama(e.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function handleJSONDrop(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = JSON.parse(e.target.result);
+            addMaskResults(data);
+          } catch (err) {
+            console.error('Failed to parse JSON:', err);
+            alert('Failed to parse JSON file. Please check the format.');
+          }
+        };
+        reader.readAsText(file);
+      }
+    </script>
+  </body>
+</html>

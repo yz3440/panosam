@@ -1,0 +1,59 @@
+[project]
+name = "panosam"
+version = "0.1.0"
+description = "PanoSAM is a Python library for running SAM3 segmentation on equirectangular panorama images with automatic perspective projection and deduplication."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Yufeng Zhao", email = "yufeng-zhao@outlook.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pillow>=10.0.0",
+    "py360convert>=0.1.0",
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "transformers @ git+https://github.com/huggingface/transformers",
+    "accelerate>=0.25.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["sam3", "segmentation", "panorama", "equirectangular", "360", "computer-vision"]
+
+[project.urls]
+Homepage = "https://github.com/yz3440/panosam"
+Repository = "https://github.com/yz3440/panosam"
+Issues = "https://github.com/yz3440/panosam/issues"
+
+[project.scripts]
+panosam = "panosam.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/panosam"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
