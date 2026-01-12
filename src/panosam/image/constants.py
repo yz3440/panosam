@@ -129,3 +129,46 @@ def initialize_zoomed_out_perspectives() -> List[PerspectiveMetadata]:
 
 ZOOMED_OUT_IMAGE_PERSPECTIVES = initialize_zoomed_out_perspectives()
 """List[PerspectiveMetadata]: Zoomed-out perspectives with 60° FOV."""
+
+
+def initialize_wideangle_perspectives() -> List[PerspectiveMetadata]:
+    """Initialize wideangle perspective configurations.
+
+    Creates 8 perspectives with:
+    - 2500x2500 pixel resolution
+    - 90° FOV
+    - 45° yaw intervals
+    - 0° pitch
+    """
+    PIXEL_SIZE = 2500
+
+    pixel_width = PIXEL_SIZE
+    pixel_height = PIXEL_SIZE
+
+    perspectives = []
+    horizontal_fov = 90
+    vertical_fov = 90
+
+    yaw_offset_count = round(360 / horizontal_fov * 2)
+    yaw_angle_offsets = []
+    interval = 360 / yaw_offset_count
+    for k in range(yaw_offset_count):
+        yaw_angle_offsets.append(k * interval - 180)
+    pitch_angle_offsets = [0]
+
+    for yaw_angle_offset in yaw_angle_offsets:
+        for pitch_angle_offset in pitch_angle_offsets:
+            perspective = PerspectiveMetadata(
+                pixel_width=pixel_width,
+                pixel_height=pixel_height,
+                horizontal_fov=horizontal_fov,
+                vertical_fov=vertical_fov,
+                yaw_offset=yaw_angle_offset,
+                pitch_offset=pitch_angle_offset,
+            )
+            perspectives.append(perspective)
+    return perspectives
+
+
+WIDEANGLE_IMAGE_PERSPECTIVES = initialize_wideangle_perspectives()
+"""List[PerspectiveMetadata]: Wideangle perspectives with 90° FOV."""

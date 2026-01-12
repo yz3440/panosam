@@ -7,6 +7,7 @@ from .image.constants import (
     DEFAULT_IMAGE_PERSPECTIVES,
     ZOOMED_IN_IMAGE_PERSPECTIVES,
     ZOOMED_OUT_IMAGE_PERSPECTIVES,
+    WIDEANGLE_IMAGE_PERSPECTIVES,
 )
 
 from .sam.models import FlatMaskResult, SphereMaskResult
@@ -25,6 +26,7 @@ __all__ = [
     "DEFAULT_IMAGE_PERSPECTIVES",
     "ZOOMED_IN_IMAGE_PERSPECTIVES",
     "ZOOMED_OUT_IMAGE_PERSPECTIVES",
+    "WIDEANGLE_IMAGE_PERSPECTIVES",
     # SAM module
     "FlatMaskResult",
     "SphereMaskResult",

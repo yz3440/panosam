@@ -80,12 +80,30 @@ Options:
   --image, -i       Path to the equirectangular panorama image (required)
   --prompt, -p      Text prompt describing objects to segment (required)
   --output, -o      Output path for JSON results (default: <image>.panosam.json)
-  --preset          Perspective preset: default, zoomed_in, zoomed_out
+  --preset          Perspective preset: default, zoomed_in, zoomed_out, wideangle
   --threshold       Confidence threshold for detections (default: 0.5)
   --mask-threshold  Threshold for binary mask generation (default: 0.5)
   --min-iou         Minimum IoU for deduplication (default: 0.3)
+  --direct, -d      Direct mode: run SAM3 on original image (for benchmarking)
   --quiet, -q       Suppress progress output
 ```
+
+### Direct Mode (Benchmarking)
+
+For benchmarking purposes, you can run SAM3 directly on the original equirectangular image without perspective projection or deduplication:
+
+```bash
+uv run panosam --image panorama.jpg --prompt "car" --direct
+```
+
+This mode still outputs spherical coordinates (yaw/pitch) by mapping the flat pixel coordinates to equirectangular projection. The output file will be named `<image>.panosam.direct.json`.
+
+| Aspect           | Normal Mode                | Direct Mode              |
+| ---------------- | -------------------------- | ------------------------ |
+| Perspective      | Multiple projections       | None (original image)    |
+| Deduplication    | Yes (IoU-based)            | No                       |
+| Coordinates      | Spherical (yaw/pitch)      | Spherical (yaw/pitch)    |
+| Output file      | `.panosam.json`            | `.panosam.direct.json`   |
 
 ## Core Components
 
