@@ -1,7 +1,74 @@
 from typing import List, Tuple, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import math
 import numpy as np
+
+
+def _calculate_spherical_centroid(
+    polygons: List[List[Tuple[float, float]]],
+) -> Tuple[float, float]:
+    """Calculate the centroid of spherical polygon(s) using 3D averaging.
+
+    This handles wrap-around at ±180° correctly by converting to 3D Cartesian
+    coordinates, averaging in 3D space, and converting back.
+
+    Args:
+        polygons: List of polygons, each polygon is a list of (yaw, pitch) tuples in degrees.
+
+    Returns:
+        (center_yaw, center_pitch) in degrees.
+    """
+    # Flatten all polygon points
+    all_points = [pt for polygon in polygons for pt in polygon]
+
+    if not all_points:
+        return 0.0, 0.0
+
+    # Convert to 3D Cartesian and accumulate
+    sum_x, sum_y, sum_z = 0.0, 0.0, 0.0
+
+    for yaw_deg, pitch_deg in all_points:
+        yaw_rad = math.radians(yaw_deg)
+        pitch_rad = math.radians(pitch_deg)
+
+        # Spherical to Cartesian (pitch = latitude, yaw = longitude)
+        # x = cos(pitch) * sin(yaw)  [East direction]
+        # y = sin(pitch)              [Up direction]
+        # z = cos(pitch) * cos(yaw)  [North direction]
+        x = math.cos(pitch_rad) * math.sin(yaw_rad)
+        y = math.sin(pitch_rad)
+        z = math.cos(pitch_rad) * math.cos(yaw_rad)
+
+        sum_x += x
+        sum_y += y
+        sum_z += z
+
+    n = len(all_points)
+    avg_x = sum_x / n
+    avg_y = sum_y / n
+    avg_z = sum_z / n
+
+    # Convert back to spherical
+    # Handle the degenerate case where the centroid is at origin
+    magnitude = math.sqrt(avg_x**2 + avg_y**2 + avg_z**2)
+    if magnitude < 1e-10:
+        # Points are symmetrically distributed, fall back to simple average
+        # This is rare but can happen
+        center_yaw = sum(p[0] for p in all_points) / n
+        center_pitch = sum(p[1] for p in all_points) / n
+        return center_yaw, center_pitch
+
+    # Normalize
+    avg_x /= magnitude
+    avg_y /= magnitude
+    avg_z /= magnitude
+
+    # Convert to spherical coordinates
+    center_yaw = math.degrees(math.atan2(avg_x, avg_z))
+    # Clamp to avoid domain errors from floating point issues
+    center_pitch = math.degrees(math.asin(max(-1.0, min(1.0, avg_y))))
+
+    return center_yaw, center_pitch
 
 
 def _perspective_to_sphere(
@@ -88,14 +155,14 @@ class FlatMaskResult:
     """A segmentation mask result in flat/perspective image coordinates.
 
     Attributes:
-        polygon: List of (x, y) tuples representing the mask contour in normalized
-                 coordinates (0-1 range, where 0,0 is top-left).
+        polygons: List of polygons, each polygon is a list of (x, y) tuples
+                  in normalized coordinates (0-1 range, where 0,0 is top-left).
         score: Confidence score for this mask (0-1).
         label: Optional text label for the segmented object.
         mask_id: Optional unique identifier for this mask.
     """
 
-    polygon: List[Tuple[float, float]]
+    polygons: List[List[Tuple[float, float]]]
     score: float
     label: Optional[str] = None
     mask_id: Optional[str] = None
@@ -119,7 +186,7 @@ class FlatMaskResult:
             pitch_offset: Vertical offset of the perspective in degrees.
 
         Returns:
-            SphereMaskResult with polygon in spherical coordinates.
+            SphereMaskResult with polygons in spherical coordinates.
         """
         if (
             horizontal_fov is None
@@ -131,24 +198,28 @@ class FlatMaskResult:
         if horizontal_fov < 0 or vertical_fov < 0:
             raise ValueError("FOV must be positive")
 
-        # Convert each polygon vertex to spherical coordinates
-        sphere_polygon = []
-        for u, v in self.polygon:
-            yaw, pitch = _perspective_to_sphere(
-                u, v, horizontal_fov, vertical_fov, yaw_offset, pitch_offset
-            )
-            sphere_polygon.append((yaw, pitch))
+        # Convert each polygon to spherical coordinates
+        sphere_polygons = []
+        for polygon in self.polygons:
+            sphere_polygon = []
+            for u, v in polygon:
+                yaw, pitch = _perspective_to_sphere(
+                    u, v, horizontal_fov, vertical_fov, yaw_offset, pitch_offset
+                )
+                sphere_polygon.append((yaw, pitch))
+            if sphere_polygon:
+                sphere_polygons.append(sphere_polygon)
 
-        # Calculate centroid for the result
-        if len(sphere_polygon) > 0:
-            center_yaw = sum(p[0] for p in sphere_polygon) / len(sphere_polygon)
-            center_pitch = sum(p[1] for p in sphere_polygon) / len(sphere_polygon)
+        # Calculate centroid using proper spherical averaging
+        # This handles wrap-around at ±180° correctly
+        if sphere_polygons:
+            center_yaw, center_pitch = _calculate_spherical_centroid(sphere_polygons)
         else:
             center_yaw = yaw_offset
             center_pitch = pitch_offset
 
         return SphereMaskResult(
-            polygon=sphere_polygon,
+            polygons=sphere_polygons,
             score=self.score,
             label=self.label,
             mask_id=self.mask_id,
@@ -159,7 +230,7 @@ class FlatMaskResult:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
-            "polygon": self.polygon,
+            "polygons": self.polygons,
             "score": self.score,
             "label": self.label,
             "mask_id": self.mask_id,
@@ -173,8 +244,11 @@ class FlatMaskResult:
         label: Optional[str] = None,
         mask_id: Optional[str] = None,
         simplify_tolerance: float = 0.001,
+        min_contour_area_ratio: float = 0.01,
     ) -> "FlatMaskResult":
         """Create a FlatMaskResult from a binary mask.
+
+        Extracts ALL significant contours from the mask, not just the largest.
 
         Args:
             mask: Binary mask as numpy array (H, W) with values 0 or 1/255.
@@ -182,6 +256,8 @@ class FlatMaskResult:
             label: Optional text label.
             mask_id: Optional unique identifier.
             simplify_tolerance: Tolerance for polygon simplification (0-1).
+            min_contour_area_ratio: Minimum contour area as ratio of largest contour.
+                                    Contours smaller than this are discarded.
 
         Returns:
             FlatMaskResult with normalized polygon coordinates.
@@ -196,20 +272,34 @@ class FlatMaskResult:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if len(contours) == 0:
-            return cls(polygon=[], score=score, label=label, mask_id=mask_id)
+            return cls(polygons=[], score=score, label=label, mask_id=mask_id)
 
-        # Get the largest contour
-        largest_contour = max(contours, key=cv2.contourArea)
+        # Get the largest contour area for filtering
+        contour_areas = [cv2.contourArea(c) for c in contours]
+        max_area = max(contour_areas)
+        min_area = max_area * min_contour_area_ratio
 
-        # Simplify the contour
-        epsilon = simplify_tolerance * cv2.arcLength(largest_contour, True)
-        simplified = cv2.approxPolyDP(largest_contour, epsilon, True)
-
-        # Convert to normalized coordinates (0-1)
+        # Process all significant contours
         h, w = mask.shape[:2]
-        polygon = [(float(pt[0][0]) / w, float(pt[0][1]) / h) for pt in simplified]
+        polygons = []
 
-        return cls(polygon=polygon, score=score, label=label, mask_id=mask_id)
+        for contour, area in zip(contours, contour_areas):
+            if area < min_area:
+                continue  # Skip tiny contours
+
+            # Simplify the contour
+            epsilon = simplify_tolerance * cv2.arcLength(contour, True)
+            simplified = cv2.approxPolyDP(contour, epsilon, True)
+
+            # Need at least 3 points for a polygon
+            if len(simplified) < 3:
+                continue
+
+            # Convert to normalized coordinates (0-1)
+            polygon = [(float(pt[0][0]) / w, float(pt[0][1]) / h) for pt in simplified]
+            polygons.append(polygon)
+
+        return cls(polygons=polygons, score=score, label=label, mask_id=mask_id)
 
 
 @dataclass
@@ -217,7 +307,7 @@ class SphereMaskResult:
     """A segmentation mask result in spherical/panoramic coordinates.
 
     Attributes:
-        polygon: List of (yaw, pitch) tuples in degrees representing the mask contour.
+        polygons: List of polygons, each polygon is a list of (yaw, pitch) tuples in degrees.
         score: Confidence score for this mask (0-1).
         label: Optional text label for the segmented object.
         mask_id: Optional unique identifier for this mask.
@@ -225,7 +315,7 @@ class SphereMaskResult:
         center_pitch: Pitch of the polygon centroid in degrees.
     """
 
-    polygon: List[Tuple[float, float]]
+    polygons: List[List[Tuple[float, float]]]
     score: float
     label: Optional[str] = None
     mask_id: Optional[str] = None
@@ -235,7 +325,7 @@ class SphereMaskResult:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         return {
-            "polygon": self.polygon,
+            "polygons": self.polygons,
             "score": self.score,
             "label": self.label,
             "mask_id": self.mask_id,
@@ -246,8 +336,17 @@ class SphereMaskResult:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SphereMaskResult":
         """Create from dictionary representation."""
+        # Handle both old format (polygon) and new format (polygons)
+        if "polygons" in data:
+            polygons = [[tuple(p) for p in poly] for poly in data["polygons"]]
+        elif "polygon" in data:
+            # Legacy format: single polygon
+            polygons = [[tuple(p) for p in data["polygon"]]] if data["polygon"] else []
+        else:
+            polygons = []
+
         return cls(
-            polygon=[tuple(p) for p in data["polygon"]],
+            polygons=polygons,
             score=data["score"],
             label=data.get("label"),
             mask_id=data.get("mask_id"),
@@ -256,34 +355,39 @@ class SphereMaskResult:
         )
 
     def get_bounding_box(self) -> Tuple[float, float, float, float]:
-        """Get the bounding box of the polygon.
+        """Get the bounding box of all polygons.
 
         Returns:
             Tuple of (min_yaw, min_pitch, max_yaw, max_pitch) in degrees.
         """
-        if len(self.polygon) == 0:
+        all_points = [pt for polygon in self.polygons for pt in polygon]
+        if not all_points:
             return (0, 0, 0, 0)
 
-        yaws = [p[0] for p in self.polygon]
-        pitches = [p[1] for p in self.polygon]
+        yaws = [p[0] for p in all_points]
+        pitches = [p[1] for p in all_points]
 
         return (min(yaws), min(pitches), max(yaws), max(pitches))
 
     def get_area_estimate(self) -> float:
-        """Estimate the area of the polygon using the shoelace formula.
+        """Estimate the total area of all polygons using the shoelace formula.
 
         Returns:
             Estimated area in square degrees.
         """
-        if len(self.polygon) < 3:
-            return 0.0
+        total_area = 0.0
+        for polygon in self.polygons:
+            if len(polygon) < 3:
+                continue
 
-        # Shoelace formula
-        n = len(self.polygon)
-        area = 0.0
-        for i in range(n):
-            j = (i + 1) % n
-            area += self.polygon[i][0] * self.polygon[j][1]
-            area -= self.polygon[j][0] * self.polygon[i][1]
+            # Shoelace formula
+            n = len(polygon)
+            area = 0.0
+            for i in range(n):
+                j = (i + 1) % n
+                area += polygon[i][0] * polygon[j][1]
+                area -= polygon[j][0] * polygon[i][1]
 
-        return abs(area) / 2.0
+            total_area += abs(area) / 2.0
+
+        return total_area

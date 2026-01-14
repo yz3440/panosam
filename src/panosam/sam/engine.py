@@ -123,7 +123,8 @@ class SAM3Engine:
                 simplify_tolerance=simplify_tolerance,
             )
             
-            if len(flat_result.polygon) >= 3:  # Only include valid polygons
+            # Only include masks with at least one valid polygon (3+ points)
+            if flat_result.polygons and any(len(p) >= 3 for p in flat_result.polygons):
                 flat_results.append(flat_result)
                 if return_raw_masks:
                     raw_masks.append(mask_np)
@@ -210,7 +211,8 @@ class SAM3Engine:
                 simplify_tolerance=simplify_tolerance,
             )
             
-            if len(flat_result.polygon) >= 3:
+            # Only include masks with at least one valid polygon (3+ points)
+            if flat_result.polygons and any(len(p) >= 3 for p in flat_result.polygons):
                 flat_results.append(flat_result)
         
         return flat_results

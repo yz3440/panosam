@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import sys
-from typing import List, Union
+from typing import List
 
 from . import (
     PanoramaImage,
@@ -26,6 +26,74 @@ PRESET_MAP = {
     "zoomed_out": ZOOMED_OUT_IMAGE_PERSPECTIVES,
     "wideangle": WIDEANGLE_IMAGE_PERSPECTIVES,
 }
+
+
+# =============================================================================
+# Cache utilities
+# =============================================================================
+
+
+def load_cached_masks(
+    intermediates_dir: str,
+    perspective_index: int,
+    perspective: PerspectiveMetadata,
+) -> List[SphereMaskResult] | None:
+    """Load sphere masks from cached intermediate JSON if it exists.
+
+    Args:
+        intermediates_dir: Directory containing intermediate files.
+        perspective_index: Index of the perspective (0-based).
+        perspective: The perspective metadata.
+
+    Returns:
+        List of SphereMaskResult if cache exists, None otherwise.
+    """
+    if intermediates_dir is None:
+        return None
+
+    json_filename = f"visualization_{perspective_index:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.json"
+    json_path = os.path.join(intermediates_dir, json_filename)
+
+    if not os.path.exists(json_path):
+        return None
+
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        masks = []
+        for mask_dict in data.get("masks", []):
+            # Handle both old format (polygon) and new format (polygons)
+            if "polygons" in mask_dict:
+                polygons = [[tuple(p) for p in poly] for poly in mask_dict["polygons"]]
+            elif "polygon" in mask_dict:
+                # Legacy format: single polygon
+                polygons = (
+                    [[tuple(p) for p in mask_dict["polygon"]]]
+                    if mask_dict["polygon"]
+                    else []
+                )
+            else:
+                polygons = []
+
+            # Add perspective prefix to mask_id for uniqueness
+            original_mask_id = mask_dict["mask_id"]
+            unique_mask_id = f"p{perspective_index:02d}_{original_mask_id}"
+            mask = SphereMaskResult(
+                polygons=polygons,
+                score=mask_dict["score"],
+                label=mask_dict["label"],
+                mask_id=unique_mask_id,
+                center_yaw=mask_dict["center_yaw"],
+                center_pitch=mask_dict["center_pitch"],
+            )
+            masks.append(mask)
+        return masks
+    except Exception:
+        return None
+
+
+# =============================================================================
 
 
 def get_perspectives(preset: str) -> List[PerspectiveMetadata]:
@@ -53,6 +121,7 @@ def run_panosam(
     save_perspectives: bool = False,
     save_visualizations: bool = False,
     intermediates_dir: str | None = None,
+    use_cache: bool = False,
 ) -> List[SphereMaskResult]:
     """Run PanoSAM segmentation on a panorama image.
 
@@ -68,14 +137,17 @@ def run_panosam(
         save_perspectives: Whether to save perspective images.
         save_visualizations: Whether to save perspective images with mask overlays.
         intermediates_dir: Directory to save intermediate files. Defaults to <image>_panosam/.
+        use_cache: If True, load masks from cached intermediate JSONs instead of running SAM3.
 
     Returns:
         List of deduplicated SphereMaskResult objects.
     """
-    # Initialize engines
-    if verbose:
-        print("Initializing SAM3 engine...")
-    sam_engine = SAM3Engine()
+    # Initialize engines (SAM3 only needed if not using cache)
+    sam_engine = None
+    if not use_cache:
+        if verbose:
+            print("Initializing SAM3 engine...")
+        sam_engine = SAM3Engine()
     dedup_engine = SphereMaskDeduplicationEngine(min_iou=min_iou)
 
     # Load panorama
@@ -85,12 +157,16 @@ def run_panosam(
     panorama = PanoramaImage(panorama_id, image_path)
 
     # Setup intermediates directory if needed
-    if save_perspectives or save_visualizations:
+    if save_perspectives or save_visualizations or use_cache:
         if intermediates_dir is None:
             intermediates_dir = f"{os.path.splitext(image_path)[0]}_panosam"
-        os.makedirs(intermediates_dir, exist_ok=True)
+        if save_perspectives or save_visualizations:
+            os.makedirs(intermediates_dir, exist_ok=True)
         if verbose:
-            print(f"Saving intermediates to: {intermediates_dir}")
+            if use_cache:
+                print(f"Using cache from: {intermediates_dir}")
+            else:
+                print(f"Saving intermediates to: {intermediates_dir}")
 
     # Get perspectives
     perspectives = get_perspectives(perspective_preset)
@@ -107,48 +183,87 @@ def run_panosam(
     for i, perspective in enumerate(perspectives):
         if verbose:
             print(
-                f"  [{i+1}/{perspective_count}] Generating perspective (yaw={perspective.yaw_offset}°)"
+                f"  [{i+1}/{perspective_count}] Processing perspective (yaw={perspective.yaw_offset}°)"
             )
 
-        # Generate perspective view
-        perspective_image = panorama.generate_perspective_image(perspective)
-        pil_image = perspective_image.get_perspective_image()
-
-        # Save perspective image if requested
-        if save_perspectives:
-            persp_filename = f"perspective_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
-            pil_image.save(os.path.join(intermediates_dir, persp_filename))
-
-        # Run SAM3 segmentation
-        flat_masks, raw_masks = sam_engine.segment(
-            image=pil_image,
-            text_prompt=text_prompt,
-            threshold=threshold,
-            mask_threshold=mask_threshold,
-            return_raw_masks=True,
+        # Check for cached results first (for testing)
+        cached_masks = (
+            load_cached_masks(intermediates_dir, i, perspective) if use_cache else None
         )
 
-        if verbose and len(flat_masks) > 0:
-            print(f"    Found {len(flat_masks)} masks")
+        if cached_masks is not None:
+            # Use cached masks - skip SAM3
+            sphere_masks = cached_masks
+            if verbose:
+                print(f"    Loaded {len(sphere_masks)} masks from cache")
+        else:
+            # Initialize SAM3 lazily if needed
+            if sam_engine is None:
+                if verbose:
+                    print("    Initializing SAM3 engine...")
+                sam_engine = SAM3Engine()
 
-        # Save visualization if requested
-        if save_visualizations and len(raw_masks) > 0:
-            from .sam.utils import visualize_masks
+            # Generate perspective view
+            perspective_image = panorama.generate_perspective_image(perspective)
+            pil_image = perspective_image.get_perspective_image()
 
-            vis_image = visualize_masks(pil_image, raw_masks)
-            vis_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
-            vis_image.convert("RGB").save(os.path.join(intermediates_dir, vis_filename))
+            # Save perspective image if requested
+            if save_perspectives:
+                persp_filename = f"perspective_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
+                pil_image.save(os.path.join(intermediates_dir, persp_filename))
 
-        # Convert to sphere coordinates
-        sphere_masks = [
-            flat_mask.to_sphere(
-                horizontal_fov=perspective.horizontal_fov,
-                vertical_fov=perspective.vertical_fov,
-                yaw_offset=perspective.yaw_offset,
-                pitch_offset=perspective.pitch_offset,
+            # Run SAM3 segmentation
+            flat_masks, raw_masks = sam_engine.segment(
+                image=pil_image,
+                text_prompt=text_prompt,
+                threshold=threshold,
+                mask_threshold=mask_threshold,
+                return_raw_masks=True,
             )
-            for flat_mask in flat_masks
-        ]
+
+            if verbose and len(flat_masks) > 0:
+                print(f"    Found {len(flat_masks)} masks")
+
+            # Convert to sphere coordinates and add perspective prefix to mask_id
+            sphere_masks = []
+            for flat_mask in flat_masks:
+                sphere_mask = flat_mask.to_sphere(
+                    horizontal_fov=perspective.horizontal_fov,
+                    vertical_fov=perspective.vertical_fov,
+                    yaw_offset=perspective.yaw_offset,
+                    pitch_offset=perspective.pitch_offset,
+                )
+                # Make mask_id unique by adding perspective prefix
+                sphere_mask.mask_id = f"p{i:02d}_{sphere_mask.mask_id}"
+                sphere_masks.append(sphere_mask)
+
+            # Save visualization if requested
+            if save_visualizations and len(raw_masks) > 0:
+                from .sam.utils import visualize_masks
+
+                vis_image = visualize_masks(pil_image, raw_masks)
+                vis_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
+                vis_image.convert("RGB").save(
+                    os.path.join(intermediates_dir, vis_filename)
+                )
+
+                # Save intermediate JSON with sphere coordinates for this perspective
+                json_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.json"
+                with open(os.path.join(intermediates_dir, json_filename), "w") as f:
+                    json.dump(
+                        {
+                            "prompt": text_prompt,
+                            "perspective": {
+                                "yaw_offset": perspective.yaw_offset,
+                                "pitch_offset": perspective.pitch_offset,
+                                "horizontal_fov": perspective.horizontal_fov,
+                                "vertical_fov": perspective.vertical_fov,
+                            },
+                            "masks": [mask.to_dict() for mask in sphere_masks],
+                        },
+                        f,
+                        indent=2,
+                    )
 
         all_sphere_masks_per_perspective.append(sphere_masks)
 
@@ -159,7 +274,6 @@ def run_panosam(
         print("Running incremental deduplication across all frames...")
 
     # Use incremental frame-based deduplication
-    # This properly handles objects spanning 3+ frames
     all_sphere_masks = dedup_engine.deduplicate_frames(all_sphere_masks_per_perspective)
 
     if verbose:
@@ -201,6 +315,7 @@ def run_panosam_multi(
     save_perspectives: bool = False,
     save_visualizations: bool = False,
     intermediates_dir: str | None = None,
+    use_cache: bool = False,
 ) -> List[SphereMaskResult]:
     """Run PanoSAM with multiple perspective presets.
 
@@ -219,6 +334,7 @@ def run_panosam_multi(
         save_perspectives: Whether to save perspective images.
         save_visualizations: Whether to save perspective images with mask overlays.
         intermediates_dir: Directory to save intermediate files. Defaults to <image>_panosam/.
+        use_cache: If True, load masks from cached intermediate JSONs instead of running SAM3.
 
     Returns:
         List of deduplicated SphereMaskResult objects.
@@ -226,10 +342,12 @@ def run_panosam_multi(
     if perspective_presets is None:
         perspective_presets = ["default"]
 
-    # Initialize engines
-    if verbose:
-        print("Initializing SAM3 engine...")
-    sam_engine = SAM3Engine()
+    # Initialize engines (SAM3 only needed if not using cache)
+    sam_engine = None
+    if not use_cache:
+        if verbose:
+            print("Initializing SAM3 engine...")
+        sam_engine = SAM3Engine()
     dedup_engine = SphereMaskDeduplicationEngine(min_iou=min_iou)
 
     # Load panorama
@@ -239,12 +357,16 @@ def run_panosam_multi(
     panorama = PanoramaImage(panorama_id, image_path)
 
     # Setup intermediates directory if needed
-    if save_perspectives or save_visualizations:
+    if save_perspectives or save_visualizations or use_cache:
         if intermediates_dir is None:
             intermediates_dir = f"{os.path.splitext(image_path)[0]}_panosam"
-        os.makedirs(intermediates_dir, exist_ok=True)
+        if save_perspectives or save_visualizations:
+            os.makedirs(intermediates_dir, exist_ok=True)
         if verbose:
-            print(f"Saving intermediates to: {intermediates_dir}")
+            if use_cache:
+                print(f"Using cache from: {intermediates_dir}")
+            else:
+                print(f"Saving intermediates to: {intermediates_dir}")
 
     # Get all perspectives from all presets
     all_perspectives = get_perspectives_multi(perspective_presets)
@@ -266,45 +388,84 @@ def run_panosam_multi(
                 f"(yaw={perspective.yaw_offset}°, fov={perspective.horizontal_fov}°)"
             )
 
-        # Generate perspective view
-        perspective_image = panorama.generate_perspective_image(perspective)
-        pil_image = perspective_image.get_perspective_image()
-
-        # Save perspective image if requested
-        if save_perspectives:
-            persp_filename = f"perspective_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
-            pil_image.save(os.path.join(intermediates_dir, persp_filename))
-
-        # Run SAM3 segmentation
-        flat_masks, raw_masks = sam_engine.segment(
-            image=pil_image,
-            text_prompt=text_prompt,
-            threshold=threshold,
-            mask_threshold=mask_threshold,
-            return_raw_masks=True,
+        # Check for cached results first (for testing)
+        cached_masks = (
+            load_cached_masks(intermediates_dir, i, perspective) if use_cache else None
         )
 
-        if verbose and len(flat_masks) > 0:
-            print(f"    Found {len(flat_masks)} masks")
+        if cached_masks is not None:
+            # Use cached masks - skip SAM3
+            sphere_masks = cached_masks
+            if verbose:
+                print(f"    Loaded {len(sphere_masks)} masks from cache")
+        else:
+            # Initialize SAM3 lazily if needed
+            if sam_engine is None:
+                if verbose:
+                    print("    Initializing SAM3 engine...")
+                sam_engine = SAM3Engine()
 
-        # Save visualization if requested
-        if save_visualizations and len(raw_masks) > 0:
-            from .sam.utils import visualize_masks
+            # Generate perspective view
+            perspective_image = panorama.generate_perspective_image(perspective)
+            pil_image = perspective_image.get_perspective_image()
 
-            vis_image = visualize_masks(pil_image, raw_masks)
-            vis_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
-            vis_image.convert("RGB").save(os.path.join(intermediates_dir, vis_filename))
+            # Save perspective image if requested
+            if save_perspectives:
+                persp_filename = f"perspective_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
+                pil_image.save(os.path.join(intermediates_dir, persp_filename))
 
-        # Convert to sphere coordinates
-        sphere_masks = [
-            flat_mask.to_sphere(
-                horizontal_fov=perspective.horizontal_fov,
-                vertical_fov=perspective.vertical_fov,
-                yaw_offset=perspective.yaw_offset,
-                pitch_offset=perspective.pitch_offset,
+            # Run SAM3 segmentation
+            flat_masks, raw_masks = sam_engine.segment(
+                image=pil_image,
+                text_prompt=text_prompt,
+                threshold=threshold,
+                mask_threshold=mask_threshold,
+                return_raw_masks=True,
             )
-            for flat_mask in flat_masks
-        ]
+
+            if verbose and len(flat_masks) > 0:
+                print(f"    Found {len(flat_masks)} masks")
+
+            # Convert to sphere coordinates and add perspective prefix to mask_id
+            sphere_masks = []
+            for flat_mask in flat_masks:
+                sphere_mask = flat_mask.to_sphere(
+                    horizontal_fov=perspective.horizontal_fov,
+                    vertical_fov=perspective.vertical_fov,
+                    yaw_offset=perspective.yaw_offset,
+                    pitch_offset=perspective.pitch_offset,
+                )
+                # Make mask_id unique by adding perspective prefix
+                sphere_mask.mask_id = f"p{i:02d}_{sphere_mask.mask_id}"
+                sphere_masks.append(sphere_mask)
+
+            # Save visualization if requested
+            if save_visualizations and len(raw_masks) > 0:
+                from .sam.utils import visualize_masks
+
+                vis_image = visualize_masks(pil_image, raw_masks)
+                vis_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.jpg"
+                vis_image.convert("RGB").save(
+                    os.path.join(intermediates_dir, vis_filename)
+                )
+
+                # Save intermediate JSON with sphere coordinates for this perspective
+                json_filename = f"visualization_{i:03d}_yaw{perspective.yaw_offset:.0f}_fov{perspective.horizontal_fov:.0f}.json"
+                with open(os.path.join(intermediates_dir, json_filename), "w") as f:
+                    json.dump(
+                        {
+                            "prompt": text_prompt,
+                            "perspective": {
+                                "yaw_offset": perspective.yaw_offset,
+                                "pitch_offset": perspective.pitch_offset,
+                                "horizontal_fov": perspective.horizontal_fov,
+                                "vertical_fov": perspective.vertical_fov,
+                            },
+                            "masks": [mask.to_dict() for mask in sphere_masks],
+                        },
+                        f,
+                        indent=2,
+                    )
 
         all_sphere_masks_per_frame.append(sphere_masks)
 
@@ -417,21 +578,26 @@ def run_panosam_direct(
         print(f"Found {len(flat_masks)} masks")
 
     # Convert flat coordinates to spherical (equirectangular mapping)
+    from .sam.models import _calculate_spherical_centroid
+
     sphere_masks = []
     for flat_mask in flat_masks:
         # Convert each polygon vertex from (x, y) to (yaw, pitch)
-        sphere_polygon = [flat_to_equirectangular(x, y) for x, y in flat_mask.polygon]
+        sphere_polygons = []
+        for polygon in flat_mask.polygons:
+            sphere_polygon = [flat_to_equirectangular(x, y) for x, y in polygon]
+            if sphere_polygon:
+                sphere_polygons.append(sphere_polygon)
 
         # Calculate centroid in spherical coordinates
-        if len(sphere_polygon) > 0:
-            center_yaw = sum(p[0] for p in sphere_polygon) / len(sphere_polygon)
-            center_pitch = sum(p[1] for p in sphere_polygon) / len(sphere_polygon)
+        if sphere_polygons:
+            center_yaw, center_pitch = _calculate_spherical_centroid(sphere_polygons)
         else:
             center_yaw = 0.0
             center_pitch = 0.0
 
         sphere_mask = SphereMaskResult(
-            polygon=sphere_polygon,
+            polygons=sphere_polygons,
             score=flat_mask.score,
             label=flat_mask.label,
             mask_id=flat_mask.mask_id,
@@ -482,6 +648,9 @@ Examples:
   
   # Save intermediate perspective images and visualizations:
   panosam --image panorama.jpg --prompt "car" --save-perspectives --save-visualizations
+  
+  # Use cached intermediate results (skip SAM3, for testing dedup):
+  panosam --image panorama.jpg --prompt "window" --preset wideangle --use-cache
   
   # Direct mode (no perspective projection, for benchmarking):
   panosam --image panorama.jpg --prompt "car" --direct
@@ -575,6 +744,12 @@ Examples:
         help="Directory for intermediate files (default: <image>_panosam/)",
     )
 
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Load masks from cached intermediate JSONs instead of running SAM3 (for testing)",
+    )
+
     args = parser.parse_args()
 
     # Validate image path
@@ -607,6 +782,7 @@ Examples:
                 save_perspectives=args.save_perspectives,
                 save_visualizations=args.save_visualizations,
                 intermediates_dir=args.intermediates_dir,
+                use_cache=args.use_cache,
             )
         else:
             # Multiple presets
@@ -622,6 +798,7 @@ Examples:
                 save_perspectives=args.save_perspectives,
                 save_visualizations=args.save_visualizations,
                 intermediates_dir=args.intermediates_dir,
+                use_cache=args.use_cache,
             )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
