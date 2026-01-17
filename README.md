@@ -4,10 +4,12 @@ PanoSAM is a Python library for running [SAM3](https://huggingface.co/facebook/s
 
 ## Demo
 
-This is a demo using the built-in [preview tool](#interactive-preview-tool) with test results.
+This is a demo using the built-in [preview tool](#interactive-preview-tool) with test results in `/assets` folder.
 
-<!-- TODO: Add demo video -->
-<!-- https://github.com/user-attachments/assets/VIDEO_ID -->
+<!-- Upload assets/panosam-demo.mp4 to GitHub and paste the URL below -->
+https://github.com/user-attachments/assets/VIDEO_ID_HERE
+
+The [test image](./assets/test-pano.jpg) is taken by the author himself and is copyright-free. Feel free to use it as you wish.
 
 ## Features
 
@@ -60,13 +62,7 @@ The basic usage is showcased in [`run_panosam.py`](run_panosam.py)
 To run the script, simply execute:
 
 ```bash
-uv run panosam --image [path-to-panorama-image] --prompt [text-prompt]
-```
-
-For example:
-
-```bash
-uv run panosam --image assets/test-pano.jpg --prompt "car"
+uv run panosam --image assets/test-pano.jpg --prompt "vehicle" --preset wideangle
 ```
 
 The result will be saved in the same folder as the original image, with the same filename but with a different extension: `.panosam.json`
@@ -154,11 +150,12 @@ perspective = ps.PerspectiveMetadata(
 
 ### Perspective Presets
 
-| Preset       | FOV   | Resolution | Perspectives | Best For      |
-| ------------ | ----- | ---------- | ------------ | ------------- |
-| `default`    | 45°   | 2048×2048  | 16           | General use   |
-| `zoomed_in`  | 22.5° | 1024×1024  | 32           | Small objects |
-| `zoomed_out` | 60°   | 2500×2500  | 12           | Large objects |
+| Preset       | FOV   | Resolution | Perspectives | Best For            |
+| ------------ | ----- | ---------- | ------------ | ------------------- |
+| `default`    | 45°   | 2048×2048  | 16           | General use         |
+| `zoomed_in`  | 22.5° | 1024×1024  | 32           | Small objects       |
+| `zoomed_out` | 60°   | 2500×2500  | 12           | Large objects       |
+| `wideangle`  | 90°   | 2500×2500  | 8            | Very large objects  |
 
 ## Deduplication Algorithm
 
