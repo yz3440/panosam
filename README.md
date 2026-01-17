@@ -6,7 +6,7 @@ PanoSAM is a Python library for running [SAM3](https://huggingface.co/facebook/s
 
 This is a demo using the built-in [preview tool](#interactive-preview-tool) with test results in `/assets` folder.
 
-https://github.com/yz3440/panosam/raw/main/assets/panosam-demo.mp4
+https://github.com/user-attachments/assets/edef8666-a7dd-4bf9-b86a-2144f28e17e1
 
 The [test image](./assets/test-pano.jpg) is taken by the author himself and is copyright-free. Feel free to use it as you wish.
 
