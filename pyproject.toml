@@ -16,6 +16,19 @@ dependencies = [
     "shapely>=2.0.0",
     "numpy>=1.24.0",
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["sam3", "segmentation", "panorama", "equirectangular", "360", "computer-vision"]
 
 [project.optional-dependencies]
 # SAM3 segmentation dependencies - install with: pip install "panosam[sam]"
@@ -30,19 +43,6 @@ sam = [
 ]
 # Alias for full install
 full = ["panosam[sam]"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Image Processing",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
-keywords = ["sam3", "segmentation", "panorama", "equirectangular", "360", "computer-vision"]
 
 [project.urls]
 Homepage = "https://github.com/yz3440/panosam"
