@@ -8,19 +8,28 @@ authors = [
     { name = "Yufeng Zhao", email = "yufeng-zhao@outlook.com" }
 ]
 requires-python = ">=3.11"
+# Core dependencies - lightweight install for image processing utilities
 dependencies = [
     "pillow>=10.0.0",
     "py360convert>=0.1.0",
     "geopandas>=0.14.0",
     "shapely>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+# SAM3 segmentation dependencies - install with: pip install "panosam[sam]"
+sam = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
-    "transformers @ git+https://github.com/huggingface/transformers",
+    # SAM3 requires unreleased transformers features - pinned to specific commit for stability
+    "transformers @ git+https://github.com/huggingface/transformers@24807bfcf4a2",
     "accelerate>=0.25.0",
     "opencv-python>=4.8.0",
-    "numpy>=1.24.0",
     "matplotlib>=3.7.0",
 ]
+# Alias for full install
+full = ["panosam[sam]"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

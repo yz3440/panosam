@@ -22,6 +22,26 @@ The [test image](./assets/test-pano.jpg) is taken by the author himself and is c
 
 ## Installation
 
+### Quick Install (from GitHub)
+
+Install directly from GitHub with pip:
+
+```bash
+# Full install with SAM3 segmentation support
+pip install "panosam[sam] @ git+https://github.com/yz3440/panosam.git"
+
+# Or lightweight install (only image/dedup utilities, no ML dependencies)
+pip install "panosam @ git+https://github.com/yz3440/panosam.git"
+```
+
+### Install a Specific Version
+
+```bash
+pip install "panosam[sam] @ git+https://github.com/yz3440/panosam.git@v0.1.0"
+```
+
+### Development Install
+
 1. Clone the repository:
 
    ```bash
@@ -42,15 +62,42 @@ The [test image](./assets/test-pano.jpg) is taken by the author himself and is c
    Or with pip:
 
    ```bash
-   pip install -e .
+   pip install -e ".[sam]"
    ```
 
-3. Login to HuggingFace (required for SAM3 model access):
+### HuggingFace Authentication (Required for SAM3)
 
-   ```bash
-   # First, accept the license at https://huggingface.co/facebook/sam3
-   huggingface-cli login
-   ```
+SAM3 requires HuggingFace authentication:
+
+```bash
+# Accept the SAM3 license at https://huggingface.co/facebook/sam3
+# Then login:
+huggingface-cli login
+```
+
+### Verify Installation
+
+Check that everything is installed correctly:
+
+```bash
+panosam check
+```
+
+This will show:
+
+```
+PanoSAM Installation Check
+========================================
+[OK] panosam 0.1.0
+[OK] Pillow 10.x.x
+[OK] numpy 1.x.x
+...
+[OK] torch 2.x.x (CUDA/MPS/CPU)
+[OK] transformers 4.x.x
+[OK] HuggingFace logged in
+========================================
+Ready to use SAM3 segmentation!
+```
 
 ## Usage
 
@@ -82,6 +129,9 @@ Options:
   --min-iou         Minimum IoU for deduplication (default: 0.3)
   --direct, -d      Direct mode: run SAM3 on original image (for benchmarking)
   --quiet, -q       Suppress progress output
+
+Subcommands:
+  panosam check     Check installation and dependencies
 ```
 
 ### Multi-Scale Detection
@@ -149,12 +199,12 @@ perspective = ps.PerspectiveMetadata(
 
 ### Perspective Presets
 
-| Preset       | FOV   | Resolution | Perspectives | Best For            |
-| ------------ | ----- | ---------- | ------------ | ------------------- |
-| `default`    | 45°   | 2048×2048  | 16           | General use         |
-| `zoomed_in`  | 22.5° | 1024×1024  | 32           | Small objects       |
-| `zoomed_out` | 60°   | 2500×2500  | 12           | Large objects       |
-| `wideangle`  | 90°   | 2500×2500  | 8            | Very large objects  |
+| Preset       | FOV   | Resolution | Perspectives | Best For           |
+| ------------ | ----- | ---------- | ------------ | ------------------ |
+| `default`    | 45°   | 2048×2048  | 16           | General use        |
+| `zoomed_in`  | 22.5° | 1024×1024  | 32           | Small objects      |
+| `zoomed_out` | 60°   | 2500×2500  | 12           | Large objects      |
+| `wideangle`  | 90°   | 2500×2500  | 8            | Very large objects |
 
 ## Deduplication Algorithm
 

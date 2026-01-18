@@ -632,8 +632,120 @@ def run_panosam_direct(
     return sphere_masks
 
 
+def run_check():
+    """Check PanoSAM installation and dependencies."""
+    from . import __version__
+    
+    print(f"PanoSAM Installation Check")
+    print("=" * 40)
+    
+    # Check panosam version
+    print(f"[OK] panosam {__version__}")
+    
+    # Check core dependencies (always installed)
+    try:
+        import PIL
+        print(f"[OK] Pillow {PIL.__version__}")
+    except ImportError:
+        print("[!!] Pillow not installed")
+    
+    try:
+        import numpy
+        print(f"[OK] numpy {numpy.__version__}")
+    except ImportError:
+        print("[!!] numpy not installed")
+    
+    try:
+        import geopandas
+        print(f"[OK] geopandas {geopandas.__version__}")
+    except ImportError:
+        print("[!!] geopandas not installed")
+    
+    try:
+        import py360convert
+        print(f"[OK] py360convert installed")
+    except ImportError:
+        print("[!!] py360convert not installed")
+    
+    print()
+    print("SAM3 Dependencies (optional)")
+    print("-" * 40)
+    
+    # Check SAM3 optional dependencies
+    torch_ok = False
+    try:
+        import torch
+        device_info = []
+        if torch.cuda.is_available():
+            device_info.append(f"CUDA {torch.version.cuda}")
+        if torch.backends.mps.is_available():
+            device_info.append("MPS")
+        if not device_info:
+            device_info.append("CPU only")
+        print(f"[OK] torch {torch.__version__} ({', '.join(device_info)})")
+        torch_ok = True
+    except ImportError:
+        print("[--] torch not installed")
+        print("     Install with: pip install 'panosam[sam]'")
+    
+    transformers_ok = False
+    try:
+        import transformers
+        print(f"[OK] transformers {transformers.__version__}")
+        transformers_ok = True
+        
+        # Check if SAM3 model classes are available
+        try:
+            from transformers import Sam3Processor, Sam3Model
+            print("[OK] SAM3 model classes available")
+        except ImportError:
+            print("[!!] SAM3 model classes not found in transformers")
+            print("     You may need a newer version of transformers")
+    except ImportError:
+        print("[--] transformers not installed")
+        print("     Install with: pip install 'panosam[sam]'")
+    
+    try:
+        import accelerate
+        print(f"[OK] accelerate {accelerate.__version__}")
+    except ImportError:
+        print("[--] accelerate not installed")
+    
+    # Check HuggingFace login status
+    print()
+    print("HuggingFace Authentication")
+    print("-" * 40)
+    
+    try:
+        from huggingface_hub import HfFolder
+        token = HfFolder.get_token()
+        if token:
+            print("[OK] HuggingFace logged in")
+        else:
+            print("[!!] HuggingFace not logged in")
+            print("     Run: huggingface-cli login")
+            print("     And accept the SAM3 license at: https://huggingface.co/facebook/sam3")
+    except ImportError:
+        print("[--] huggingface_hub not installed")
+    except Exception as e:
+        print(f"[??] Could not check HuggingFace status: {e}")
+    
+    print()
+    print("=" * 40)
+    if torch_ok and transformers_ok:
+        print("Ready to use SAM3 segmentation!")
+    else:
+        print("SAM3 dependencies missing. Install with:")
+        print("  pip install 'panosam[sam] @ git+https://github.com/yz3440/panosam.git'")
+
+
 def main():
     """Main CLI entry point."""
+    # Check if first argument is a subcommand
+    if len(sys.argv) > 1 and sys.argv[1] == "check":
+        run_check()
+        return
+    
     parser = argparse.ArgumentParser(
         description="PanoSAM: Run SAM3 segmentation on panoramic images",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -654,6 +766,9 @@ Examples:
   
   # Direct mode (no perspective projection, for benchmarking):
   panosam --image panorama.jpg --prompt "car" --direct
+  
+  # Check installation and dependencies:
+  panosam check
         """,
     )
 
