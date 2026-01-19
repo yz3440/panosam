@@ -4,6 +4,10 @@ __version__ = "0.1.0"
 
 from .image.models import PanoramaImage, PerspectiveImage, PerspectiveMetadata
 from .image.constants import (
+    # Perspective generation API
+    generate_perspectives,
+    combine_perspectives,
+    # Pre-defined perspective sets
     DEFAULT_IMAGE_PERSPECTIVES,
     ZOOMED_IN_IMAGE_PERSPECTIVES,
     ZOOMED_OUT_IMAGE_PERSPECTIVES,
@@ -23,6 +27,10 @@ __all__ = [
     "PanoramaImage",
     "PerspectiveImage",
     "PerspectiveMetadata",
+    # Perspective generation API
+    "generate_perspectives",
+    "combine_perspectives",
+    # Pre-defined perspective sets
     "DEFAULT_IMAGE_PERSPECTIVES",
     "ZOOMED_IN_IMAGE_PERSPECTIVES",
     "ZOOMED_OUT_IMAGE_PERSPECTIVES",
