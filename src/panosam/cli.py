@@ -113,7 +113,8 @@ def run_panosam(
     image_path: str,
     text_prompt: str,
     output_path: str | None = None,
-    perspective_preset: str = "default",
+    perspective_preset: str | None = None,
+    perspectives: List[PerspectiveMetadata] | None = None,
     threshold: float = 0.5,
     mask_threshold: float = 0.5,
     min_iou: float = 0.3,
@@ -130,6 +131,9 @@ def run_panosam(
         text_prompt: Text describing objects to segment (e.g., "car", "person").
         output_path: Path to save JSON results. If None, auto-generates from image path.
         perspective_preset: Perspective configuration preset ("default", "zoomed_in", "zoomed_out").
+            Ignored if `perspectives` is provided.
+        perspectives: Custom list of PerspectiveMetadata objects. Use generate_perspectives()
+            to create these. If provided, overrides perspective_preset.
         threshold: Confidence threshold for detections.
         mask_threshold: Threshold for binary mask generation.
         min_iou: Minimum IoU for deduplication.
@@ -141,6 +145,15 @@ def run_panosam(
 
     Returns:
         List of deduplicated SphereMaskResult objects.
+    
+    Examples:
+        >>> # Using a preset
+        >>> results = run_panosam("pano.jpg", "car", perspective_preset="wideangle")
+        
+        >>> # Using custom perspectives
+        >>> import panosam as ps
+        >>> my_perspectives = ps.generate_perspectives(fov=60, pitch_angles=[-30, 0, 30])
+        >>> results = run_panosam("pano.jpg", "car", perspectives=my_perspectives)
     """
     # Initialize engines (SAM3 only needed if not using cache)
     sam_engine = None
@@ -168,9 +181,13 @@ def run_panosam(
             else:
                 print(f"Saving intermediates to: {intermediates_dir}")
 
-    # Get perspectives
-    perspectives = get_perspectives(perspective_preset)
-    perspective_count = len(perspectives)
+    # Get perspectives (custom or from preset)
+    if perspectives is None:
+        preset = perspective_preset if perspective_preset else "default"
+        perspective_list = get_perspectives(preset)
+    else:
+        perspective_list = perspectives
+    perspective_count = len(perspective_list)
 
     if verbose:
         print(
@@ -180,7 +197,7 @@ def run_panosam(
     # Process each perspective
     all_sphere_masks_per_perspective: List[List[SphereMaskResult]] = []
 
-    for i, perspective in enumerate(perspectives):
+    for i, perspective in enumerate(perspective_list):
         if verbose:
             print(
                 f"  [{i+1}/{perspective_count}] Processing perspective (yaw={perspective.yaw_offset}°)"
@@ -307,7 +324,8 @@ def run_panosam_multi(
     image_path: str,
     text_prompt: str,
     output_path: str | None = None,
-    perspective_presets: List[str] = None,
+    perspective_presets: List[str] | None = None,
+    perspectives: List[PerspectiveMetadata] | None = None,
     threshold: float = 0.5,
     mask_threshold: float = 0.5,
     min_iou: float = 0.3,
@@ -317,7 +335,7 @@ def run_panosam_multi(
     intermediates_dir: str | None = None,
     use_cache: bool = False,
 ) -> List[SphereMaskResult]:
-    """Run PanoSAM with multiple perspective presets.
+    """Run PanoSAM with multiple perspective presets or custom perspectives.
 
     This mode combines multiple zoom levels to detect objects of different sizes,
     using incremental deduplication to merge overlapping masks across all frames.
@@ -327,6 +345,9 @@ def run_panosam_multi(
         text_prompt: Text describing objects to segment (e.g., "car", "window").
         output_path: Path to save JSON results. If None, auto-generates from image path.
         perspective_presets: List of preset names to combine (e.g., ["zoomed_out", "wideangle"]).
+            Ignored if `perspectives` is provided.
+        perspectives: Custom list of PerspectiveMetadata objects. Use generate_perspectives()
+            and combine_perspectives() to create these. If provided, overrides perspective_presets.
         threshold: Confidence threshold for detections.
         mask_threshold: Threshold for binary mask generation.
         min_iou: Minimum IoU for deduplication.
@@ -339,9 +360,6 @@ def run_panosam_multi(
     Returns:
         List of deduplicated SphereMaskResult objects.
     """
-    if perspective_presets is None:
-        perspective_presets = ["default"]
-
     # Initialize engines (SAM3 only needed if not using cache)
     sam_engine = None
     if not use_cache:
@@ -368,12 +386,21 @@ def run_panosam_multi(
             else:
                 print(f"Saving intermediates to: {intermediates_dir}")
 
-    # Get all perspectives from all presets
-    all_perspectives = get_perspectives_multi(perspective_presets)
+    # Get perspectives (custom or from presets)
+    if perspectives is not None:
+        all_perspectives = perspectives
+        if verbose:
+            print(f"Using {len(all_perspectives)} custom perspectives")
+    else:
+        if perspective_presets is None:
+            perspective_presets = ["default"]
+        all_perspectives = get_perspectives_multi(perspective_presets)
+        if verbose:
+            print(f"Using presets: {', '.join(perspective_presets)}")
+    
     total_perspectives = len(all_perspectives)
 
     if verbose:
-        print(f"Using presets: {', '.join(perspective_presets)}")
         print(
             f"Processing {total_perspectives} total perspectives with prompt: '{text_prompt}'"
         )
