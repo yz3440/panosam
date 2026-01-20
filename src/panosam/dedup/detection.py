@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import unary_union
+from tqdm import tqdm
 
 from ..geometry import calculate_spherical_centroid
 from ..sam.models import SphereMaskResult
@@ -635,7 +636,13 @@ class SphereMaskDeduplicationEngine:
             master_list: List[SphereMaskResult] = list(frames[0])
 
             # Process each subsequent frame
-            for frame_masks in frames[1:]:
+            for frame_masks in tqdm(
+                frames[1:],
+                desc="Deduplicating",
+                unit="frame",
+                initial=1,
+                total=len(frames),
+            ):
                 for mask in frame_masks:
                     # Check overlaps one by one
                     indices_to_remove = []

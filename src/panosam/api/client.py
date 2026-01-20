@@ -12,6 +12,7 @@ from typing import List, Optional, Sequence, Union
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 from ..dedup.detection import SphereMaskDeduplicationEngine
 from ..image.models import PanoramaImage, PerspectiveMetadata
@@ -146,7 +147,9 @@ class PanoSAM:
 
         per_frame: List[List[SphereMaskResult]] = []
 
-        for i, perspective in enumerate(self._perspectives):
+        for i, perspective in enumerate(
+            tqdm(self._perspectives, desc="Segmenting perspectives", unit="view")
+        ):
             perspective_image = pano.generate_perspective_image(perspective)
             pil_image = perspective_image.get_perspective_image()
 
