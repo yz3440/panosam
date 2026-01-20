@@ -4,6 +4,9 @@ SAM3 segmentation for equirectangular panorama images.
 
 Handles perspective projection, coordinate conversion, and mask deduplication.
 
+https://github.com/user-attachments/assets/61a546ac-3fce-4c26-b87c-3e09b0e4c331
+
+
 ## Installation
 
 ```bash
