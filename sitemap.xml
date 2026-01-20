@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://yz3440.github.io/panosam/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/examples/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/dedup/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/geometry/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/image/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/sam/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://yz3440.github.io/panosam/api/visualization/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+</urlset>
