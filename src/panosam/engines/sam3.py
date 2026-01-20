@@ -34,7 +34,7 @@ def _check_sam_dependencies():
         raise ImportError(
             f"SAM3 dependencies not installed: {', '.join(missing)}\n\n"
             "Install with:\n"
-            "  pip install 'panosam[sam] @ git+https://github.com/yz3440/panosam.git'\n\n"
+            "  pip install 'panosam[sam]'\n\n"
             "Then login to HuggingFace (required for SAM3 model access):\n"
             "  huggingface-cli login\n\n"
             "You must also accept the SAM3 license at:\n"
