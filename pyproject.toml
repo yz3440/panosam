@@ -1,6 +1,6 @@
 [project]
 name = "panosam"
-version = "0.1.0"
+version = "0.1.1"
 description = "PanoSAM is a Python library for running SAM3 segmentation on equirectangular panorama images with automatic perspective projection and deduplication."
 readme = "README.md"
 license = { text = "MIT" }
