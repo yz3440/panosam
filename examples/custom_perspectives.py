@@ -10,6 +10,7 @@ Usage:
 
 import sys
 import panosam as ps
+from panosam.engines.sam3 import SAM3Engine
 
 
 def main():
@@ -33,7 +34,10 @@ def main():
     print(f"Using {len(perspectives)} custom perspectives (including ceiling/floor)")
     print(f"Segmenting '{prompt}'...")
 
-    client = ps.PanoSAM(views=perspectives)
+    # Initialize the SAM3 engine (requires panosam[sam] dependencies)
+    engine = SAM3Engine()
+
+    client = ps.PanoSAM(engine=engine, views=perspectives)
     result = client.segment(image_path, prompt=prompt)
     result.save_json(image_path.replace(".jpg", ".custom.json"))
 

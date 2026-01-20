@@ -10,6 +10,7 @@ Usage:
 
 import sys
 import panosam as ps
+from panosam.engines.sam3 import SAM3Engine
 
 
 def main():
@@ -23,9 +24,13 @@ def main():
 
     print(f"Running multi-scale segmentation for '{prompt}'...")
 
+    # Initialize the SAM3 engine (requires panosam[sam] dependencies)
+    engine = SAM3Engine()
+
     # Combine zoomed_out (large objects) and wideangle (very large objects)
     client = ps.PanoSAM(
-        views=[ps.PerspectivePreset.ZOOMED_OUT, ps.PerspectivePreset.WIDEANGLE]
+        engine=engine,
+        views=[ps.PerspectivePreset.ZOOMED_OUT, ps.PerspectivePreset.WIDEANGLE],
     )
     result = client.segment(image_path, prompt=prompt)
     result.save_json(image_path.replace(".jpg", ".multiscale.json"))

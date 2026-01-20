@@ -1,6 +1,6 @@
-# Image Models
+# Image
 
-The image module provides classes for working with equirectangular panorama images and their perspective projections.
+Classes for equirectangular panoramas and perspective projections.
 
 ## PanoramaImage
 
@@ -30,7 +30,7 @@ The image module provides classes for working with equirectangular panorama imag
     options:
       show_root_heading: true
 
-## Generating Perspectives
+## Perspective Generation
 
 ::: panosam.image.perspectives.generate_perspectives
     options:
@@ -40,14 +40,13 @@ The image module provides classes for working with equirectangular panorama imag
     options:
       show_root_heading: true
 
-## Perspective Presets
+## Presets
 
-Pre-configured perspective sets accessible via the main package:
+Pre-configured perspective sets:
 
 ```python
 import panosam as ps
 
-# Available presets
 ps.DEFAULT_IMAGE_PERSPECTIVES      # 16 perspectives, 45° FOV, 2048x2048
 ps.ZOOMED_IN_IMAGE_PERSPECTIVES    # 32 perspectives, 22.5° FOV, 1024x1024
 ps.ZOOMED_OUT_IMAGE_PERSPECTIVES   # 12 perspectives, 60° FOV, 2500x2500

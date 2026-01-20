@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Sequence
+from typing import Optional, Protocol, Sequence, runtime_checkable
 
-from ..sam.models import SphereMaskResult
+from PIL import Image
+
+from ..sam.models import FlatMaskResult, SphereMaskResult
 
 
 class PerspectivePreset(str, Enum):
@@ -37,6 +39,25 @@ class DedupOptions:
 
     min_iou: float = 0.3
     use_union: bool = True
+
+
+@runtime_checkable
+class SegmentationEngine(Protocol):
+    """Protocol for segmentation engines (structural typing).
+
+    Any class with a matching `segment()` method can be used.
+    No inheritance required.
+    """
+
+    def segment(
+        self,
+        image: Image.Image,
+        text_prompt: str,
+        threshold: float = 0.5,
+        mask_threshold: float = 0.5,
+        simplify_tolerance: float = 0.005,
+    ) -> list[FlatMaskResult]:
+        """Segment objects in an image using a text prompt."""
 
 
 @dataclass(frozen=True)

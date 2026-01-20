@@ -1,5 +1,5 @@
 site_name: PanoSAM
-site_description: Python library for running SAM3 segmentation on equirectangular panorama images
+site_description: SAM3 segmentation for equirectangular panorama images
 site_author: Yufeng Zhao
 site_url: https://yz3440.github.io/panosam/
 
@@ -50,6 +50,8 @@ nav:
   - Examples: examples.md
   - API Reference:
       - Overview: api/index.md
-      - SAM3 Engine: api/sam.md
+      - Engines: api/sam.md
+      - Image: api/image.md
       - Deduplication: api/dedup.md
-      - Image Models: api/image.md
+      - Geometry: api/geometry.md
+      - Visualization: api/visualization.md

@@ -39,10 +39,14 @@ sam = [
     "transformers @ git+https://github.com/huggingface/transformers@24807bfcf4a2",
     "accelerate>=0.25.0",
     "opencv-python>=4.8.0",
+]
+# Visualization/debugging dependencies - install with: pip install "panosam[viz]"
+viz = [
+    "opencv-python>=4.8.0",
     "matplotlib>=3.7.0",
 ]
-# Alias for full install
-full = ["panosam[sam]"]
+# Full install with all features
+full = ["panosam[sam,viz]"]
 # Documentation dependencies - install with: pip install "panosam[docs]"
 docs = [
     "mkdocs>=1.5.0",

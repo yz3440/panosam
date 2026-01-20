@@ -1,14 +1,14 @@
 """Pipeline-first client API (Facade).
 
-The `PanoSAM` class holds reusable configuration and dependencies (SAM engine,
+The `PanoSAM` class holds reusable configuration and dependencies (segmentation engine,
 deduper, perspective views) to make batch usage ergonomic.
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Union, overload
+from dataclasses import dataclass, field
+from typing import List, Optional, Sequence, Union
 
 import numpy as np
 from PIL import Image
@@ -22,9 +22,14 @@ from ..image.perspectives import (
     ZOOMED_OUT_IMAGE_PERSPECTIVES,
     combine_perspectives,
 )
-from ..sam.engine import SAM3Engine
 from ..sam.models import SphereMaskResult
-from .models import DedupOptions, PerspectivePreset, SegmentationOptions, SegmentationResult
+from .models import (
+    DedupOptions,
+    PerspectivePreset,
+    SegmentationEngine,
+    SegmentationOptions,
+    SegmentationResult,
+)
 
 
 PanoramaInput = Union[str, Image.Image, np.ndarray, PanoramaImage]
@@ -89,17 +94,32 @@ def _resolve_views(views: ViewsInput) -> tuple[List[PerspectiveMetadata], Option
 
 @dataclass
 class PanoSAM:
-    """High-level segmentation client for panoramas."""
+    """High-level segmentation client for panoramas.
 
+    Args:
+        engine: Segmentation engine (required). Use SAM3Engine or a custom engine
+            conforming to the SegmentationEngine protocol.
+        views: Perspective preset(s) or custom PerspectiveMetadata list.
+        deduper: Optional custom deduplication engine.
+        default_options: Default segmentation options (threshold, mask_threshold, etc.).
+        default_dedup: Default deduplication options (min_iou, use_union).
+
+    Example:
+        >>> from panosam import PanoSAM, PerspectivePreset
+        >>> from panosam.engines.sam3 import SAM3Engine
+        >>> engine = SAM3Engine()
+        >>> ps = PanoSAM(engine=engine, views=PerspectivePreset.DEFAULT)
+        >>> result = ps.segment("panorama.jpg", "car")
+    """
+
+    engine: SegmentationEngine
     views: ViewsInput = PerspectivePreset.DEFAULT
-    engine: Optional[SAM3Engine] = None
     deduper: Optional[SphereMaskDeduplicationEngine] = None
-    default_options: SegmentationOptions = SegmentationOptions()
-    default_dedup: DedupOptions = DedupOptions()
+    default_options: SegmentationOptions = field(default_factory=SegmentationOptions)
+    default_dedup: DedupOptions = field(default_factory=DedupOptions)
 
     def __post_init__(self) -> None:
         self._perspectives, self._preset, self._presets = _resolve_views(self.views)
-        self._engine = self.engine or SAM3Engine()
         self._deduper = self.deduper or SphereMaskDeduplicationEngine(
             min_iou=self.default_dedup.min_iou
         )
@@ -130,7 +150,7 @@ class PanoSAM:
             perspective_image = pano.generate_perspective_image(perspective)
             pil_image = perspective_image.get_perspective_image()
 
-            flat_masks = self._engine.segment(
+            flat_masks = self.engine.segment(
                 image=pil_image,
                 text_prompt=prompt,
                 threshold=opts.threshold,

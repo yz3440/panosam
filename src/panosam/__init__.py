@@ -2,7 +2,14 @@
 
 __version__ = "0.1.0"
 
-from .api import DedupOptions, PanoSAM, PerspectivePreset, SegmentationOptions, SegmentationResult
+from .api import (
+    DedupOptions,
+    PanoSAM,
+    PerspectivePreset,
+    SegmentationEngine,
+    SegmentationOptions,
+    SegmentationResult,
+)
 
 from .image.models import PanoramaImage, PerspectiveImage, PerspectiveMetadata
 from .image.perspectives import (
@@ -17,7 +24,6 @@ from .image.perspectives import (
 )
 
 from .sam.models import FlatMaskResult, SphereMaskResult
-from .sam.engine import SAM3Engine
 from .sam.utils import extract_mask_contours, visualize_masks, visualize_sphere_masks
 
 from .dedup.detection import SphereMaskDeduplicationEngine
@@ -28,6 +34,7 @@ __all__ = [
     # Pipeline-first public API
     "PanoSAM",
     "PerspectivePreset",
+    "SegmentationEngine",
     "SegmentationOptions",
     "DedupOptions",
     "SegmentationResult",
@@ -43,10 +50,9 @@ __all__ = [
     "ZOOMED_IN_IMAGE_PERSPECTIVES",
     "ZOOMED_OUT_IMAGE_PERSPECTIVES",
     "WIDEANGLE_IMAGE_PERSPECTIVES",
-    # SAM module
+    # Mask models (needed for custom engines)
     "FlatMaskResult",
     "SphereMaskResult",
-    "SAM3Engine",
     # Deduplication module
     "SphereMaskDeduplicationEngine",
     # Visualization utilities (advanced)

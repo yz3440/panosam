@@ -1,21 +1,8 @@
 # API Reference
 
-PanoSAM provides a simple high-level API for panorama segmentation.
+## Client API
 
-## High-Level API
-
-The main entry point is the `PanoSAM` client:
-
-```python
-import panosam as ps
-
-# Simple usage
-client = ps.PanoSAM(views=ps.PerspectivePreset.DEFAULT)
-result = client.segment("panorama.jpg", "car")
-
-# Save preview-tool JSON
-result.save_json("results.panosam.json")
-```
+The `PanoSAM` class is the main entry point.
 
 ::: panosam.api.client.PanoSAM
     options:
@@ -29,28 +16,38 @@ result.save_json("results.panosam.json")
     options:
       show_root_heading: true
 
-## Low-Level Components
+::: panosam.api.models.SegmentationOptions
+    options:
+      show_root_heading: true
 
-For advanced use cases, PanoSAM exposes the underlying components:
-
-- **[SAM3 Engine](sam.md)**: The segmentation engine using HuggingFace Transformers.
-- **[Deduplication](dedup.md)**: Sphere mask deduplication using GeoPandas.
-- **[Image Models](image.md)**: Classes for panoramas and perspective projections.
+::: panosam.api.models.DedupOptions
+    options:
+      show_root_heading: true
 
 ## Module Structure
 
 ```text
 panosam/
-├── api/           # Pipeline-first public API
-│   ├── client.py  # PanoSAM client
-│   └── models.py  # Result + option types
-├── core.py        # Legacy functional API (advanced/internal)
-├── sam/           # SAM3 segmentation engine
-│   ├── engine.py  # SAM3Engine class
-│   └── models.py  # FlatMaskResult, SphereMaskResult
-├── dedup/         # Deduplication engine
-│   └── detection.py
-└── image/         # Image handling
-    ├── models.py     # PanoramaImage, PerspectiveMetadata
-    └── perspectives.py  # Presets, generate_perspectives()
+├── api/              # Client API
+│   ├── client.py     # PanoSAM
+│   └── models.py     # SegmentationResult, options, SegmentationEngine protocol
+├── engines/          # Segmentation engines (lazily imported)
+│   └── sam3.py       # SAM3Engine (requires [sam])
+├── sam/              # Mask models
+│   ├── models.py     # FlatMaskResult, SphereMaskResult
+│   └── utils.py      # Visualization (requires [viz])
+├── dedup/            # Deduplication
+│   └── detection.py  # SphereMaskDeduplicationEngine
+├── image/            # Panorama handling
+│   ├── models.py     # PanoramaImage, PerspectiveMetadata
+│   └── perspectives.py  # Presets, generate_perspectives()
+└── geometry.py       # Coordinate conversion utilities
 ```
+
+## Submodules
+
+- [Engines](sam.md) - `SegmentationEngine` protocol and `SAM3Engine`
+- [Image](image.md) - Panorama and perspective classes
+- [Deduplication](dedup.md) - Mask deduplication
+- [Geometry](geometry.md) - Coordinate conversion
+- [Visualization](visualization.md) - Mask visualization (requires `[viz]`)
