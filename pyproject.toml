@@ -8,18 +8,14 @@ authors = [
     { name = "Yufeng Zhao", email = "yufeng-zhao@outlook.com" }
 ]
 requires-python = ">=3.11"
+# Core dependencies - lightweight install for image processing utilities
 dependencies = [
     "pillow>=10.0.0",
     "py360convert>=0.1.0",
     "geopandas>=0.14.0",
     "shapely>=2.0.0",
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
-    "transformers @ git+https://github.com/huggingface/transformers",
-    "accelerate>=0.25.0",
-    "opencv-python>=4.8.0",
     "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
+    "tqdm>=4.60.0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -35,13 +31,35 @@ classifiers = [
 ]
 keywords = ["sam3", "segmentation", "panorama", "equirectangular", "360", "computer-vision"]
 
+[project.optional-dependencies]
+# SAM3 segmentation dependencies - install with: pip install "panosam[sam]"
+sam = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    # SAM3 requires unreleased transformers features - pinned to specific commit for stability
+    "transformers @ git+https://github.com/huggingface/transformers@24807bfcf4a2",
+    "accelerate>=0.25.0",
+    "opencv-python>=4.8.0",
+]
+# Visualization/debugging dependencies - install with: pip install "panosam[viz]"
+viz = [
+    "opencv-python>=4.8.0",
+    "matplotlib>=3.7.0",
+]
+# Full install with all features
+full = ["panosam[sam,viz]"]
+# Documentation dependencies - install with: pip install "panosam[docs]"
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-terminal>=4.6.0",
+    "mkdocstrings[python]>=0.24.0",
+    "pymdown-extensions>=10.0.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/yz3440/panosam"
 Repository = "https://github.com/yz3440/panosam"
 Issues = "https://github.com/yz3440/panosam/issues"
-
-[project.scripts]
-panosam = "panosam.cli:main"
 
 [build-system]
 requires = ["hatchling"]

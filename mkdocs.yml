@@ -1,0 +1,57 @@
+site_name: PanoSAM
+site_description: SAM3 segmentation for equirectangular panorama images
+site_author: Yufeng Zhao
+site_url: https://yz3440.github.io/panosam/
+
+repo_name: yz3440/panosam
+repo_url: https://github.com/yz3440/panosam
+
+theme:
+  name: terminal
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+
+markdown_extensions:
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - meta
+  - toc:
+      permalink: "#"
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+  - pymdownx.superfences
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+
+nav:
+  - Home: index.md
+  - Examples: examples.md
+  - API Reference:
+      - Overview: api/index.md
+      - Engines: api/sam.md
+      - Image: api/image.md
+      - Deduplication: api/dedup.md
+      - Geometry: api/geometry.md
+      - Visualization: api/visualization.md
