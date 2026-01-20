@@ -4,23 +4,28 @@ PanoSAM provides a simple high-level API for panorama segmentation.
 
 ## High-Level API
 
-The main entry points are `segment()` and `segment_multi()`:
+The main entry point is the `PanoSAM` client:
 
 ```python
 import panosam as ps
 
 # Simple usage
-results = ps.segment("panorama.jpg", "car")
+client = ps.PanoSAM(views=ps.PerspectivePreset.DEFAULT)
+result = client.segment("panorama.jpg", "car")
 
-# Multi-scale detection
-results = ps.segment_multi("panorama.jpg", "window", presets=["zoomed_out", "wideangle"])
+# Save preview-tool JSON
+result.save_json("results.panosam.json")
 ```
 
-::: panosam.core.segment
+::: panosam.api.client.PanoSAM
     options:
       show_root_heading: true
 
-::: panosam.core.segment_multi
+::: panosam.api.models.SegmentationResult
+    options:
+      show_root_heading: true
+
+::: panosam.api.models.PerspectivePreset
     options:
       show_root_heading: true
 
@@ -34,9 +39,12 @@ For advanced use cases, PanoSAM exposes the underlying components:
 
 ## Module Structure
 
-```
+```text
 panosam/
-├── core.py        # High-level segment() API
+├── api/           # Pipeline-first public API
+│   ├── client.py  # PanoSAM client
+│   └── models.py  # Result + option types
+├── core.py        # Legacy functional API (advanced/internal)
 ├── sam/           # SAM3 segmentation engine
 │   ├── engine.py  # SAM3Engine class
 │   └── models.py  # FlatMaskResult, SphereMaskResult
@@ -44,5 +52,5 @@ panosam/
 │   └── detection.py
 └── image/         # Image handling
     ├── models.py     # PanoramaImage, PerspectiveMetadata
-    └── constants.py  # Presets, generate_perspectives()
+    └── perspectives.py  # Presets, generate_perspectives()
 ```

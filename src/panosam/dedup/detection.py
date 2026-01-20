@@ -7,7 +7,8 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import unary_union
 
-from ..sam.models import SphereMaskResult, _calculate_spherical_centroid
+from ..geometry import calculate_spherical_centroid
+from ..sam.models import SphereMaskResult
 
 
 # Maximum allowed yaw span for a single object (degrees).
@@ -68,7 +69,7 @@ class SphereMaskDeduplicationEngine:
         # Cache for pre-loaded GeoDataFrames keyed by mask identifier
         self._gdf_cache: dict[str, gpd.GeoDataFrame] = {}
 
-    def __get_mask_key(self, mask: SphereMaskResult) -> str:
+    def _get_mask_key(self, mask: SphereMaskResult) -> str:
         """Generate a unique key for a mask based on its polygon content.
 
         Args:
@@ -81,20 +82,20 @@ class SphereMaskDeduplicationEngine:
         poly_hash = hash(tuple(tuple(p) for poly in mask.polygons for p in poly))
         return f"{mask.mask_id}_{poly_hash}"
 
-    def __preload_gdfs(self, masks: List[SphereMaskResult]) -> None:
+    def _preload_gdfs(self, masks: List[SphereMaskResult]) -> None:
         """Pre-load all masks as GeoDataFrames into the cache.
 
         Args:
             masks: List of sphere masks to pre-load.
         """
         for mask in masks:
-            key = self.__get_mask_key(mask)
+            key = self._get_mask_key(mask)
             if key not in self._gdf_cache:
-                gdf = self.__sphere_mask_to_gdf(mask)
+                gdf = self._sphere_mask_to_gdf(mask)
                 if gdf is not None:
                     self._gdf_cache[key] = gdf
 
-    def __get_cached_gdf(self, mask: SphereMaskResult) -> Optional[gpd.GeoDataFrame]:
+    def _get_cached_gdf(self, mask: SphereMaskResult) -> Optional[gpd.GeoDataFrame]:
         """Get the GeoDataFrame for a mask from cache, or compute it.
 
         Args:
@@ -103,31 +104,31 @@ class SphereMaskDeduplicationEngine:
         Returns:
             GeoDataFrame or None if conversion failed.
         """
-        key = self.__get_mask_key(mask)
+        key = self._get_mask_key(mask)
         if key in self._gdf_cache:
             return self._gdf_cache[key]
         # Fallback: compute and cache if not found
-        gdf = self.__sphere_mask_to_gdf(mask)
+        gdf = self._sphere_mask_to_gdf(mask)
         if gdf is not None:
             self._gdf_cache[key] = gdf
         return gdf
 
-    def __update_cache_for_merged(self, merged_mask: SphereMaskResult) -> None:
+    def _update_cache_for_merged(self, merged_mask: SphereMaskResult) -> None:
         """Add a newly merged mask to the cache.
 
         Args:
             merged_mask: The newly merged mask.
         """
-        key = self.__get_mask_key(merged_mask)
-        gdf = self.__sphere_mask_to_gdf(merged_mask)
+        key = self._get_mask_key(merged_mask)
+        gdf = self._sphere_mask_to_gdf(merged_mask)
         if gdf is not None:
             self._gdf_cache[key] = gdf
 
-    def __clear_cache(self) -> None:
+    def _clear_cache(self) -> None:
         """Clear the GeoDataFrame cache."""
         self._gdf_cache.clear()
 
-    def __normalize_yaw(self, yaw: float) -> float:
+    def _normalize_yaw(self, yaw: float) -> float:
         """Normalize yaw to [-180, 180) range."""
         while yaw >= 180:
             yaw -= 360
@@ -135,7 +136,7 @@ class SphereMaskDeduplicationEngine:
             yaw += 360
         return yaw
 
-    def __shift_polygon_yaw(self, poly: Polygon, shift: float) -> Polygon:
+    def _shift_polygon_yaw(self, poly: Polygon, shift: float) -> Polygon:
         """Shift all yaw coordinates of a polygon by a given amount.
 
         Args:
@@ -146,21 +147,21 @@ class SphereMaskDeduplicationEngine:
             New polygon with shifted yaw coordinates.
         """
         coords = list(poly.exterior.coords)
-        shifted_coords = [(self.__normalize_yaw(x + shift), y) for x, y in coords]
+        shifted_coords = [(self._normalize_yaw(x + shift), y) for x, y in coords]
         return Polygon(shifted_coords)
 
-    def __get_yaw_bounds(self, poly: Polygon) -> Tuple[float, float]:
+    def _get_yaw_bounds(self, poly: Polygon) -> Tuple[float, float]:
         """Get min and max yaw of a polygon."""
         coords = list(poly.exterior.coords)
         yaws = [x for x, y in coords]
         return min(yaws), max(yaws)
 
-    def __get_yaw_span(self, poly: Polygon) -> float:
+    def _get_yaw_span(self, poly: Polygon) -> float:
         """Get the yaw span of a polygon."""
-        min_yaw, max_yaw = self.__get_yaw_bounds(poly)
+        min_yaw, max_yaw = self._get_yaw_bounds(poly)
         return max_yaw - min_yaw
 
-    def __polygons_need_wrap_handling(self, polygons: List[Polygon]) -> bool:
+    def _polygons_need_wrap_handling(self, polygons: List[Polygon]) -> bool:
         """Check if polygons need wrap-around handling.
 
         Returns True if polygons span across the ±180° boundary, which would
@@ -180,7 +181,7 @@ class SphereMaskDeduplicationEngine:
         # If we have polygons on both sides of the wrap boundary, we need handling
         return has_positive and has_negative
 
-    def __sphere_mask_to_shapely(
+    def _sphere_mask_to_shapely(
         self, sphere_mask: SphereMaskResult
     ) -> Optional[MultiPolygon]:
         """Convert a sphere mask to Shapely MultiPolygon.
@@ -218,7 +219,7 @@ class SphereMaskDeduplicationEngine:
 
         return MultiPolygon(shapely_polygons)
 
-    def __multipolygon_to_gdf(self, multi_polygon: MultiPolygon) -> gpd.GeoDataFrame:
+    def _multipolygon_to_gdf(self, multi_polygon: MultiPolygon) -> gpd.GeoDataFrame:
         """Convert a Shapely MultiPolygon to a GeoDataFrame.
 
         Uses EPSG:4326 (WGS84) for geographic coordinates and converts
@@ -243,7 +244,7 @@ class SphereMaskDeduplicationEngine:
         gdf = gdf.to_crs("ESRI:54034")
         return gdf
 
-    def __sphere_mask_to_gdf(
+    def _sphere_mask_to_gdf(
         self, sphere_mask: SphereMaskResult
     ) -> Optional[gpd.GeoDataFrame]:
         """Convert a sphere mask to a GeoDataFrame.
@@ -254,12 +255,12 @@ class SphereMaskDeduplicationEngine:
         Returns:
             GeoDataFrame or None if conversion failed.
         """
-        multi_polygon = self.__sphere_mask_to_shapely(sphere_mask)
+        multi_polygon = self._sphere_mask_to_shapely(sphere_mask)
         if multi_polygon is None or multi_polygon.is_empty:
             return None
-        return self.__multipolygon_to_gdf(multi_polygon)
+        return self._multipolygon_to_gdf(multi_polygon)
 
-    def __get_intersection(
+    def _get_intersection(
         self, gdf_1: gpd.GeoDataFrame, gdf_2: gpd.GeoDataFrame
     ) -> Optional[PolygonIntersection]:
         """Calculate intersection metrics between two polygons.
@@ -302,7 +303,7 @@ class SphereMaskDeduplicationEngine:
         except Exception:
             return None
 
-    def __intersect_masks(
+    def _intersect_masks(
         self,
         mask_1: SphereMaskResult,
         mask_2: SphereMaskResult,
@@ -318,13 +319,13 @@ class SphereMaskDeduplicationEngine:
         Returns:
             PolygonIntersection or None if no intersection.
         """
-        gdf_1 = self.__get_cached_gdf(mask_1)
-        gdf_2 = self.__get_cached_gdf(mask_2)
+        gdf_1 = self._get_cached_gdf(mask_1)
+        gdf_2 = self._get_cached_gdf(mask_2)
 
         if gdf_1 is None or gdf_2 is None:
             return None
 
-        return self.__get_intersection(gdf_1, gdf_2)
+        return self._get_intersection(gdf_1, gdf_2)
 
     def check_duplication(
         self, mask_1: SphereMaskResult, mask_2: SphereMaskResult
@@ -338,7 +339,7 @@ class SphereMaskDeduplicationEngine:
         Returns:
             True if masks are considered duplicates.
         """
-        intersection = self.__intersect_masks(mask_1, mask_2)
+        intersection = self._intersect_masks(mask_1, mask_2)
 
         if intersection is None:
             return False
@@ -353,7 +354,7 @@ class SphereMaskDeduplicationEngine:
 
         return False
 
-    def __fix_polygon(self, poly) -> Optional[Polygon]:
+    def _fix_polygon(self, poly) -> Optional[Polygon]:
         """Fix a potentially invalid polygon and return a valid simple polygon.
 
         Args:
@@ -379,7 +380,7 @@ class SphereMaskDeduplicationEngine:
 
         return poly
 
-    def __validate_and_fix_mask(self, mask: SphereMaskResult) -> SphereMaskResult:
+    def _validate_and_fix_mask(self, mask: SphereMaskResult) -> SphereMaskResult:
         """Validate and fix a mask's polygons if needed.
 
         Args:
@@ -388,13 +389,13 @@ class SphereMaskDeduplicationEngine:
         Returns:
             The mask with valid polygons, or original if unfixable.
         """
-        multi_poly = self.__sphere_mask_to_shapely(mask)
+        multi_poly = self._sphere_mask_to_shapely(mask)
         if multi_poly is None:
             return mask  # Return original if we can't fix it
 
         fixed_polygons = []
         for geom in multi_poly.geoms:
-            fixed_poly = self.__fix_polygon(geom)
+            fixed_poly = self._fix_polygon(geom)
             if fixed_poly is not None:
                 coords = list(fixed_poly.exterior.coords)[:-1]
                 fixed_polygons.append([(float(x), float(y)) for x, y in coords])
@@ -403,7 +404,7 @@ class SphereMaskDeduplicationEngine:
             return mask  # Return original if nothing fixed
 
         # Use proper spherical centroid (handles wrap-around at ±180°)
-        center_yaw, center_pitch = _calculate_spherical_centroid(fixed_polygons)
+        center_yaw, center_pitch = calculate_spherical_centroid(fixed_polygons)
         return SphereMaskResult(
             polygons=fixed_polygons,
             score=mask.score,
@@ -413,7 +414,7 @@ class SphereMaskDeduplicationEngine:
             center_pitch=center_pitch,
         )
 
-    def __merge_masks(
+    def _merge_masks(
         self, masks: List[SphereMaskResult]
     ) -> Optional[SphereMaskResult]:
         """Merge multiple overlapping masks into one using polygon union.
@@ -432,12 +433,12 @@ class SphereMaskDeduplicationEngine:
             or None if the merge is invalid.
         """
         if len(masks) == 1:
-            return self.__validate_and_fix_mask(masks[0])
+            return self._validate_and_fix_mask(masks[0])
 
         # Collect all Shapely polygons from all masks
         all_polygons = []
         for mask in masks:
-            multi_poly = self.__sphere_mask_to_shapely(mask)
+            multi_poly = self._sphere_mask_to_shapely(mask)
             if multi_poly is not None:
                 all_polygons.extend(multi_poly.geoms)
 
@@ -446,13 +447,13 @@ class SphereMaskDeduplicationEngine:
             return max(masks, key=lambda m: m.score)
 
         # Check if we need to handle wrap-around at ±180°
-        needs_wrap_handling = self.__polygons_need_wrap_handling(all_polygons)
+        needs_wrap_handling = self._polygons_need_wrap_handling(all_polygons)
         yaw_shift = 180.0 if needs_wrap_handling else 0.0
 
         # Shift polygons if needed to avoid wrap-around issues
         if yaw_shift != 0:
             all_polygons = [
-                self.__shift_polygon_yaw(p, yaw_shift) for p in all_polygons
+                self._shift_polygon_yaw(p, yaw_shift) for p in all_polygons
             ]
 
         # Union all polygons
@@ -480,10 +481,10 @@ class SphereMaskDeduplicationEngine:
 
             for geom in geoms:
                 if yaw_shift != 0:
-                    geom = self.__shift_polygon_yaw(geom, -yaw_shift)
+                    geom = self._shift_polygon_yaw(geom, -yaw_shift)
 
                 # Validate the polygon doesn't span too much in yaw
-                yaw_span = self.__get_yaw_span(geom)
+                yaw_span = self._get_yaw_span(geom)
                 if yaw_span > MAX_VALID_YAW_SPAN:
                     continue  # Skip invalid polygons but continue with others
 
@@ -496,7 +497,7 @@ class SphereMaskDeduplicationEngine:
                 return None
 
             # Calculate centroid using proper spherical averaging
-            center_yaw, center_pitch = _calculate_spherical_centroid(result_polygons)
+            center_yaw, center_pitch = calculate_spherical_centroid(result_polygons)
 
             # Use the best score among merged masks
             best_score = max(m.score for m in masks)
@@ -542,7 +543,7 @@ class SphereMaskDeduplicationEngine:
             return list(masks)
 
         # Pre-load all GeoDataFrames into cache for faster processing
-        self.__preload_gdfs(masks)
+        self._preload_gdfs(masks)
 
         try:
             # Use incremental merging approach
@@ -582,25 +583,25 @@ class SphereMaskDeduplicationEngine:
 
                     if use_union and len(masks_to_merge) > 1:
                         # Merge overlapping masks
-                        merged = self.__merge_masks(masks_to_merge)
+                        merged = self._merge_masks(masks_to_merge)
                         if merged is not None:
                             master_list.append(merged)
-                            self.__update_cache_for_merged(merged)
+                            self._update_cache_for_merged(merged)
                         else:
                             # Merge failed - keep the best scoring one
                             best = max(masks_to_merge, key=lambda m: m.score)
                             master_list.append(best)
-                            self.__update_cache_for_merged(best)
+                            self._update_cache_for_merged(best)
                     else:
                         # No union - just add the mask
                         master_list.append(mask)
-                        self.__update_cache_for_merged(mask)
+                        self._update_cache_for_merged(mask)
 
             # Final pass: validate and fix all masks
-            return [self.__validate_and_fix_mask(m) for m in master_list]
+            return [self._validate_and_fix_mask(m) for m in master_list]
         finally:
             # Clear cache to free memory
-            self.__clear_cache()
+            self._clear_cache()
 
     def deduplicate_frames(
         self,
@@ -627,7 +628,7 @@ class SphereMaskDeduplicationEngine:
 
         # Pre-load all GeoDataFrames from all frames into cache
         all_masks = [mask for frame in frames for mask in frame]
-        self.__preload_gdfs(all_masks)
+        self._preload_gdfs(all_masks)
 
         try:
             # Start with the first frame as the master list
@@ -668,22 +669,22 @@ class SphereMaskDeduplicationEngine:
 
                         if use_union and len(masks_to_merge) > 1:
                             # Merge overlapping masks
-                            merged = self.__merge_masks(masks_to_merge)
+                            merged = self._merge_masks(masks_to_merge)
                             if merged is not None:
                                 master_list.append(merged)
-                                self.__update_cache_for_merged(merged)
+                                self._update_cache_for_merged(merged)
                             else:
                                 # Merge failed - keep the best scoring one
                                 best = max(masks_to_merge, key=lambda m: m.score)
                                 master_list.append(best)
-                                self.__update_cache_for_merged(best)
+                                self._update_cache_for_merged(best)
                         else:
                             # No union or single mask - just add the mask
                             master_list.append(mask)
-                            self.__update_cache_for_merged(mask)
+                            self._update_cache_for_merged(mask)
 
             # Final pass: validate and fix all masks
-            return [self.__validate_and_fix_mask(m) for m in master_list]
+            return [self._validate_and_fix_mask(m) for m in master_list]
         finally:
             # Clear cache to free memory
-            self.__clear_cache()
+            self._clear_cache()

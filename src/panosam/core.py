@@ -18,7 +18,7 @@ import numpy as np
 
 from .dedup.detection import SphereMaskDeduplicationEngine
 from .image.models import PanoramaImage, PerspectiveMetadata
-from .image.constants import (
+from .image.perspectives import (
     DEFAULT_IMAGE_PERSPECTIVES,
     WIDEANGLE_IMAGE_PERSPECTIVES,
     ZOOMED_IN_IMAGE_PERSPECTIVES,

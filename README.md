@@ -6,7 +6,7 @@ PanoSAM is a Python library for running [SAM3](https://huggingface.co/facebook/s
 
 This is a demo using the built-in [preview tool](#interactive-preview-tool) with test results in `/assets` folder.
 
-https://github.com/user-attachments/assets/edef8666-a7dd-4bf9-b86a-2144f28e17e1
+`https://github.com/user-attachments/assets/edef8666-a7dd-4bf9-b86a-2144f28e17e1`
 
 The [test image](./assets/test-pano.jpg) is taken by the author himself and is copyright-free. Feel free to use it as you wish.
 
@@ -82,11 +82,14 @@ huggingface-cli login
 ```python
 import panosam as ps
 
+# Create a reusable segmentation client (defaults shown)
+client = ps.PanoSAM(views=ps.PerspectivePreset.DEFAULT)
+
 # Segment all cars in a panorama
-results = ps.segment("panorama.jpg", "car")
+result = client.segment("panorama.jpg", prompt="car")
 
 # Results are SphereMaskResult objects with spherical coordinates
-for mask in results:
+for mask in result.masks:
     print(f"Found {mask.label} at yaw={mask.center_yaw:.1f}, pitch={mask.center_pitch:.1f}")
     print(f"  Score: {mask.score:.2f}")
     print(f"  Polygons: {len(mask.polygons)}")
@@ -96,11 +99,9 @@ for mask in results:
 
 ```python
 # Save results as JSON (compatible with the preview tool)
-results = ps.segment(
-    "panorama.jpg",
-    "car",
-    save_json="results.panosam.json"
-)
+client = ps.PanoSAM(views=ps.PerspectivePreset.DEFAULT)
+result = client.segment("panorama.jpg", "car")
+result.save_json("results.panosam.json")
 ```
 
 ### Perspective Presets
@@ -109,10 +110,12 @@ Use different presets depending on the size of objects you're detecting:
 
 ```python
 # For small objects (e.g., signs, small fixtures)
-results = ps.segment("panorama.jpg", "sign", preset="zoomed_in")
+client = ps.PanoSAM(views=ps.PerspectivePreset.ZOOMED_IN)
+result = client.segment("panorama.jpg", "sign")
 
 # For large objects (e.g., buildings, vehicles)
-results = ps.segment("panorama.jpg", "car", preset="wideangle")
+client = ps.PanoSAM(views=ps.PerspectivePreset.WIDEANGLE)
+result = client.segment("panorama.jpg", "car")
 ```
 
 | Preset       | FOV   | Resolution | Perspectives | Best For           |
@@ -127,11 +130,8 @@ results = ps.segment("panorama.jpg", "car", preset="wideangle")
 Combine multiple presets for detecting objects of varying sizes:
 
 ```python
-results = ps.segment_multi(
-    "panorama.jpg",
-    "window",
-    presets=["zoomed_out", "wideangle"],
-)
+client = ps.PanoSAM(views=[ps.PerspectivePreset.ZOOMED_OUT, ps.PerspectivePreset.WIDEANGLE])
+result = client.segment("panorama.jpg", "window")
 ```
 
 ### Custom Perspectives
@@ -147,7 +147,8 @@ perspectives = ps.generate_perspectives(
     pitch_angles=[-45, 0, 45],  # Look up, straight, and down
 )
 
-results = ps.segment("panorama.jpg", "light", perspectives=perspectives)
+client = ps.PanoSAM(views=perspectives)
+result = client.segment("panorama.jpg", "light")
 ```
 
 ### Reuse Engine Across Calls
@@ -158,7 +159,8 @@ For batch processing, reuse the SAM3 engine to avoid reloading the model:
 engine = ps.SAM3Engine()
 
 for image_path in image_paths:
-    results = ps.segment(image_path, "car", engine=engine)
+    client = ps.PanoSAM(engine=engine, views=ps.PerspectivePreset.DEFAULT)
+    result = client.segment(image_path, "car")
     # Process results...
 ```
 
@@ -194,7 +196,7 @@ When the same object appears in multiple perspective views, PanoSAM uses an incr
 
 ### Overview
 
-```
+```text
 Frame 1 → Add all masks to master list
 Frame 2 → For each mask:
             If overlaps with master list → Union & merge
@@ -221,7 +223,7 @@ PanoSAM includes a web-based interactive preview tool for visualizing segmentati
 cd preview && python -m http.server
 ```
 
-Then open http://localhost:8000 in your browser.
+Then open `http://localhost:8000` in your browser.
 
 Drag and drop the JSON result file and your panorama image to the interface. You can orbit around the panorama and hover over masks to highlight them.
 
@@ -229,7 +231,7 @@ Drag and drop the JSON result file and your panorama image to the interface. You
 
 See the [examples/](examples/) folder for complete working scripts:
 
-- `basic_usage.py` - Simplest usage with `ps.segment()`
+- `basic_usage.py` - Simplest usage with `PanoSAM`
 - `multi_scale.py` - Combining presets for multi-scale detection
 - `custom_perspectives.py` - Creating custom perspective configurations
 

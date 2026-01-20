@@ -2,7 +2,7 @@
 """Basic PanoSAM usage example.
 
 This script demonstrates the simplest way to run SAM3 segmentation
-on a panoramic image using the high-level `panosam.segment()` API.
+on a panoramic image using the pipeline-first `PanoSAM` API.
 
 Usage:
     python examples/basic_usage.py path/to/panorama.jpg "car"
@@ -23,16 +23,15 @@ def main():
 
     print(f"Segmenting '{prompt}' in {image_path}...")
 
-    # Run segmentation - this is the simplest API
-    results = ps.segment(
-        image_path,
-        prompt,
-        save_json=image_path.replace(".jpg", ".panosam.json"),
-    )
+    client = ps.PanoSAM(views=ps.PerspectivePreset.DEFAULT)
+    result = client.segment(image_path, prompt=prompt)
+    result.save_json(image_path.replace(".jpg", ".panosam.json"))
 
-    print(f"Found {len(results)} objects")
-    for i, mask in enumerate(results):
-        print(f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})")
+    print(f"Found {len(result.masks)} objects")
+    for i, mask in enumerate(result.masks):
+        print(
+            f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})"
+        )
 
 
 if __name__ == "__main__":

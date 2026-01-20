@@ -32,11 +32,11 @@ The image module provides classes for working with equirectangular panorama imag
 
 ## Generating Perspectives
 
-::: panosam.image.constants.generate_perspectives
+::: panosam.image.perspectives.generate_perspectives
     options:
       show_root_heading: true
 
-::: panosam.image.constants.combine_perspectives
+::: panosam.image.perspectives.combine_perspectives
     options:
       show_root_heading: true
 

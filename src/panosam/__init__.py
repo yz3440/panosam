@@ -2,10 +2,10 @@
 
 __version__ = "0.1.0"
 
-from .core import segment, segment_multi
+from .api import DedupOptions, PanoSAM, PerspectivePreset, SegmentationOptions, SegmentationResult
 
 from .image.models import PanoramaImage, PerspectiveImage, PerspectiveMetadata
-from .image.constants import (
+from .image.perspectives import (
     # Perspective generation API
     generate_perspectives,
     combine_perspectives,
@@ -25,9 +25,12 @@ from .dedup.detection import SphereMaskDeduplicationEngine
 __all__ = [
     # Version
     "__version__",
-    # High-level API
-    "segment",
-    "segment_multi",
+    # Pipeline-first public API
+    "PanoSAM",
+    "PerspectivePreset",
+    "SegmentationOptions",
+    "DedupOptions",
+    "SegmentationResult",
     # Image module
     "PanoramaImage",
     "PerspectiveImage",

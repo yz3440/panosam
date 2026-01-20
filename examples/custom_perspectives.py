@@ -24,25 +24,24 @@ def main():
     # Create custom perspectives that cover ceiling and floor
     # (useful for detecting lights, ceiling fixtures, floor patterns)
     perspectives = ps.generate_perspectives(
-        fov=60,                       # 60 degree field of view
-        resolution=2048,              # 2048x2048 output images
-        overlap=0.5,                  # 50% overlap between views
-        pitch_angles=[-45, 0, 45],    # Look up, straight, and down
+        fov=60,  # 60 degree field of view
+        resolution=2048,  # 2048x2048 output images
+        overlap=0.5,  # 50% overlap between views
+        pitch_angles=[-45, 0, 45],  # Look up, straight, and down
     )
 
     print(f"Using {len(perspectives)} custom perspectives (including ceiling/floor)")
     print(f"Segmenting '{prompt}'...")
 
-    results = ps.segment(
-        image_path,
-        prompt,
-        perspectives=perspectives,
-        save_json=image_path.replace(".jpg", ".custom.json"),
-    )
+    client = ps.PanoSAM(views=perspectives)
+    result = client.segment(image_path, prompt=prompt)
+    result.save_json(image_path.replace(".jpg", ".custom.json"))
 
-    print(f"Found {len(results)} objects")
-    for i, mask in enumerate(results):
-        print(f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})")
+    print(f"Found {len(result.masks)} objects")
+    for i, mask in enumerate(result.masks):
+        print(
+            f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})"
+        )
 
 
 if __name__ == "__main__":

@@ -24,16 +24,17 @@ def main():
     print(f"Running multi-scale segmentation for '{prompt}'...")
 
     # Combine zoomed_out (large objects) and wideangle (very large objects)
-    results = ps.segment_multi(
-        image_path,
-        prompt,
-        presets=["zoomed_out", "wideangle"],
-        save_json=image_path.replace(".jpg", ".multiscale.json"),
+    client = ps.PanoSAM(
+        views=[ps.PerspectivePreset.ZOOMED_OUT, ps.PerspectivePreset.WIDEANGLE]
     )
+    result = client.segment(image_path, prompt=prompt)
+    result.save_json(image_path.replace(".jpg", ".multiscale.json"))
 
-    print(f"Found {len(results)} objects across multiple scales")
-    for i, mask in enumerate(results):
-        print(f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})")
+    print(f"Found {len(result.masks)} objects across multiple scales")
+    for i, mask in enumerate(result.masks):
+        print(
+            f"  [{i}] score={mask.score:.2f}, center=({mask.center_yaw:.1f}, {mask.center_pitch:.1f})"
+        )
 
 
 if __name__ == "__main__":
