@@ -2,6 +2,8 @@
 
 __version__ = "0.1.0"
 
+from .core import segment, segment_multi
+
 from .image.models import PanoramaImage, PerspectiveImage, PerspectiveMetadata
 from .image.constants import (
     # Perspective generation API
@@ -23,6 +25,9 @@ from .dedup.detection import SphereMaskDeduplicationEngine
 __all__ = [
     # Version
     "__version__",
+    # High-level API
+    "segment",
+    "segment_multi",
     # Image module
     "PanoramaImage",
     "PerspectiveImage",
@@ -39,9 +44,10 @@ __all__ = [
     "FlatMaskResult",
     "SphereMaskResult",
     "SAM3Engine",
+    # Deduplication module
+    "SphereMaskDeduplicationEngine",
+    # Visualization utilities (advanced)
     "extract_mask_contours",
     "visualize_masks",
     "visualize_sphere_masks",
-    # Deduplication module
-    "SphereMaskDeduplicationEngine",
 ]

@@ -75,136 +75,118 @@ SAM3 requires HuggingFace authentication:
 huggingface-cli login
 ```
 
-### Verify Installation
-
-Check that everything is installed correctly:
-
-```bash
-panosam check
-```
-
-This will show:
-
-```
-PanoSAM Installation Check
-========================================
-[OK] panosam 0.1.0
-[OK] Pillow 10.x.x
-[OK] numpy 1.x.x
-...
-[OK] torch 2.x.x (CUDA/MPS/CPU)
-[OK] transformers 4.x.x
-[OK] HuggingFace logged in
-========================================
-Ready to use SAM3 segmentation!
-```
-
 ## Usage
 
 ### Basic Usage
 
-The basic usage is showcased in [`run_panosam.py`](run_panosam.py)
-
-To run the script, simply execute:
-
-```bash
-uv run panosam --image assets/test-pano.jpg --prompt "vehicle" --preset wideangle
-```
-
-The result will be saved in the same folder as the original image, with the same filename but with a different extension: `.panosam.json`
-
-### Command Line Options
-
-```bash
-panosam --help
-
-Options:
-  --image, -i       Path to the equirectangular panorama image (required)
-  --prompt, -p      Text prompt describing objects to segment (required)
-  --output, -o      Output path for JSON results (default: <image>.panosam.json)
-  --preset          Perspective preset(s): default, zoomed_in, zoomed_out, wideangle
-                    (can specify multiple for multi-scale detection)
-  --threshold       Confidence threshold for detections (default: 0.5)
-  --mask-threshold  Threshold for binary mask generation (default: 0.5)
-  --min-iou         Minimum IoU for deduplication (default: 0.3)
-  --direct, -d      Direct mode: run SAM3 on original image (for benchmarking)
-  --quiet, -q       Suppress progress output
-
-Subcommands:
-  panosam check     Check installation and dependencies
-```
-
-### Multi-Scale Detection
-
-For detecting objects of varying sizes, you can combine multiple perspective presets:
-
-```bash
-uv run panosam --image panorama.jpg --prompt "window" --preset zoomed_out wideangle
-```
-
-When multiple presets are specified:
-
-- Perspectives from all presets are combined
-- Incremental deduplication merges overlapping masks across all frames
-- Better coverage for objects at different scales
-
-### Direct Mode (Benchmarking)
-
-For benchmarking purposes, you can run SAM3 directly on the original equirectangular image without perspective projection or deduplication:
-
-```bash
-uv run panosam --image panorama.jpg --prompt "car" --direct
-```
-
-This mode still outputs spherical coordinates (yaw/pitch) by mapping the flat pixel coordinates to equirectangular projection. The output file will be named `<image>.panosam.direct.json`.
-
-| Aspect        | Normal Mode           | Direct Mode            |
-| ------------- | --------------------- | ---------------------- |
-| Perspective   | Multiple projections  | None (original image)  |
-| Deduplication | Yes (IoU-based)       | No                     |
-| Coordinates   | Spherical (yaw/pitch) | Spherical (yaw/pitch)  |
-| Output file   | `.panosam.json`       | `.panosam.direct.json` |
-
-## Core Components
-
-The core building blocks of `panosam` are:
-
-- `SAM3Engine`: Represents the SAM3 segmentation engine using HuggingFace Transformers.
-- `SphereMaskDeduplicationEngine`: Represents a duplication detection engine using GeoPandas IoU.
-- `PanoramaImage`: Represents an equirectangular panorama image.
-- `PerspectiveMetadata`: Represents a perspective view of the panorama.
-
-By default, `run_panosam.py` uses `ps.DEFAULT_IMAGE_PERSPECTIVES` which is 16 perspectives with the following settings:
-
-- pixel_width: 2048
-- pixel_height: 2048
-- 45° horizontal field of view
-- 0° pitch offset
-- 22.5° yaw interval
-
-You can also specify different perspective settings by directly constructing `PerspectiveMetadata` objects:
-
 ```python
 import panosam as ps
 
-perspective = ps.PerspectiveMetadata(
-    pixel_width=1024,
-    pixel_height=1024,
-    horizontal_fov=45,
-    vertical_fov=45,
-    yaw_offset=0,
-    pitch_offset=0,
+# Segment all cars in a panorama
+results = ps.segment("panorama.jpg", "car")
+
+# Results are SphereMaskResult objects with spherical coordinates
+for mask in results:
+    print(f"Found {mask.label} at yaw={mask.center_yaw:.1f}, pitch={mask.center_pitch:.1f}")
+    print(f"  Score: {mask.score:.2f}")
+    print(f"  Polygons: {len(mask.polygons)}")
+```
+
+### Save Results
+
+```python
+# Save results as JSON (compatible with the preview tool)
+results = ps.segment(
+    "panorama.jpg",
+    "car",
+    save_json="results.panosam.json"
 )
 ```
 
 ### Perspective Presets
 
+Use different presets depending on the size of objects you're detecting:
+
+```python
+# For small objects (e.g., signs, small fixtures)
+results = ps.segment("panorama.jpg", "sign", preset="zoomed_in")
+
+# For large objects (e.g., buildings, vehicles)
+results = ps.segment("panorama.jpg", "car", preset="wideangle")
+```
+
 | Preset       | FOV   | Resolution | Perspectives | Best For           |
 | ------------ | ----- | ---------- | ------------ | ------------------ |
-| `default`    | 45°   | 2048×2048  | 16           | General use        |
-| `zoomed_in`  | 22.5° | 1024×1024  | 32           | Small objects      |
-| `zoomed_out` | 60°   | 2500×2500  | 12           | Large objects      |
-| `wideangle`  | 90°   | 2500×2500  | 8            | Very large objects |
+| `default`    | 45°   | 2048x2048  | 16           | General use        |
+| `zoomed_in`  | 22.5° | 1024x1024  | 32           | Small objects      |
+| `zoomed_out` | 60°   | 2500x2500  | 12           | Large objects      |
+| `wideangle`  | 90°   | 2500x2500  | 8            | Very large objects |
+
+### Multi-Scale Detection
+
+Combine multiple presets for detecting objects of varying sizes:
+
+```python
+results = ps.segment_multi(
+    "panorama.jpg",
+    "window",
+    presets=["zoomed_out", "wideangle"],
+)
+```
+
+### Custom Perspectives
+
+For advanced control, create custom perspective configurations:
+
+```python
+# Cover ceiling and floor (useful for lights, floor patterns)
+perspectives = ps.generate_perspectives(
+    fov=60,
+    resolution=2048,
+    overlap=0.5,
+    pitch_angles=[-45, 0, 45],  # Look up, straight, and down
+)
+
+results = ps.segment("panorama.jpg", "light", perspectives=perspectives)
+```
+
+### Reuse Engine Across Calls
+
+For batch processing, reuse the SAM3 engine to avoid reloading the model:
+
+```python
+engine = ps.SAM3Engine()
+
+for image_path in image_paths:
+    results = ps.segment(image_path, "car", engine=engine)
+    # Process results...
+```
+
+## Output Format
+
+Results are saved as JSON with the following structure:
+
+```json
+{
+  "prompt": "car",
+  "image_path": "panorama.jpg",
+  "perspective_preset": "default",
+  "masks": [
+    {
+      "polygons": [[[yaw1, pitch1], [yaw2, pitch2], ...]],
+      "score": 0.95,
+      "label": "car",
+      "mask_id": "car_0",
+      "center_yaw": 45.2,
+      "center_pitch": -5.3
+    }
+  ]
+}
+```
+
+- `polygons`: List of polygon coordinates in (yaw, pitch) degrees
+- `score`: Confidence score (0-1)
+- `center_yaw/pitch`: Centroid of the polygon
 
 ## Deduplication Algorithm
 
@@ -226,79 +208,30 @@ Final → Validate all polygons
 
 Two masks are considered duplicates if either:
 
-- **IoU ≥ 0.3** (Intersection over Union)
-- **Intersection Ratio ≥ 0.5** (intersection area / smaller mask area)
+- **IoU >= 0.3** (Intersection over Union)
+- **Intersection Ratio >= 0.5** (intersection area / smaller mask area)
 
 This catches both similar-sized overlapping masks and cases where a small mask is contained within a larger one.
 
-### Polygon Union
-
-When masks overlap, their polygons are merged using Shapely's `unary_union`:
-
-```
-Mask A (Frame 1):  ████████
-Mask B (Frame 2):      ████████
-                       ↓
-Union Result:      ████████████
-```
-
-This handles objects spanning 3+ frames correctly - as long as there's a chain of overlapping detections, they all merge into one.
-
-### MultiPolygon Handling
-
-If the union produces disconnected parts (e.g., car body + side mirror detected separately):
-
-- **Keep the largest polygon** - smaller fragments are filtered out
-
-### Polygon Validation
-
-All output polygons are validated and fixed using GeoPandas/Shapely:
-
-1. `make_valid()` - fixes self-intersections
-2. `buffer(0)` - cleans up geometry artifacts
-3. `simplify()` - reduces complexity if >100 vertices
-
-### Coordinate System
-
-Masks are compared in **spherical coordinates (yaw/pitch)** using EPSG:4326 → EPSG:3857 projection for accurate area calculations.
-
-## Output Format
-
-Results are saved as JSON with the following structure:
-
-```json
-{
-  "prompt": "car",
-  "image_path": "panorama.jpg",
-  "perspective_preset": "default",
-  "masks": [
-    {
-      "polygon": [[yaw1, pitch1], [yaw2, pitch2], ...],
-      "score": 0.95,
-      "label": "car",
-      "mask_id": "car_0",
-      "center_yaw": 45.2,
-      "center_pitch": -5.3
-    }
-  ]
-}
-```
-
-- `polygon`: List of (yaw, pitch) coordinates in degrees
-- `score`: Confidence score (0-1)
-- `center_yaw/pitch`: Centroid of the polygon
-
 ## Interactive Preview Tool
 
-PanoSAM includes a web-based interactive preview tool that allows you to visualize segmentation results on the panorama image. It's located in `preview/index.html`. To run it:
+PanoSAM includes a web-based interactive preview tool for visualizing segmentation results. To use it:
 
 ```bash
 cd preview && python -m http.server
 ```
 
-Then, open your browser and navigate to `http://localhost:8000`.
+Then open http://localhost:8000 in your browser.
 
-Simply drag and drop the JSON result file and your panorama image to the interface, and you should see the segmentation masks overlaid on the panorama image. You can orbit around the panorama and hover over masks to highlight them.
+Drag and drop the JSON result file and your panorama image to the interface. You can orbit around the panorama and hover over masks to highlight them.
+
+## Examples
+
+See the [examples/](examples/) folder for complete working scripts:
+
+- `basic_usage.py` - Simplest usage with `ps.segment()`
+- `multi_scale.py` - Combining presets for multi-scale detection
+- `custom_perspectives.py` - Creating custom perspective configurations
 
 ## Related Projects
 

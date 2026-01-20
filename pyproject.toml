@@ -56,9 +56,6 @@ Homepage = "https://github.com/yz3440/panosam"
 Repository = "https://github.com/yz3440/panosam"
 Issues = "https://github.com/yz3440/panosam/issues"
 
-[project.scripts]
-panosam = "panosam.cli:main"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

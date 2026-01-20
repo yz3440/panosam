@@ -28,7 +28,6 @@ plugins:
             separate_signature: true
 
 markdown_extensions:
-  # Python Markdown
   - attr_list
   - def_list
   - footnotes
@@ -36,11 +35,11 @@ markdown_extensions:
   - meta
   - toc:
       permalink: "#"
-  # PyMdown Extensions
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: ["."]
   - pymdownx.superfences
   - pymdownx.caret
   - pymdownx.mark
@@ -48,6 +47,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Examples: examples.md
   - API Reference:
       - Overview: api/index.md
       - SAM3 Engine: api/sam.md
