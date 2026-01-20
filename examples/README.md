@@ -6,7 +6,7 @@ Example scripts demonstrating PanoSAM usage.
 
 1. Install PanoSAM with SAM3 support:
    ```bash
-   pip install "panosam[sam] @ git+https://github.com/yz3440/panosam.git"
+   pip install "panosam[sam3]"
    ```
 
 2. Login to HuggingFace (required for SAM3 model access):

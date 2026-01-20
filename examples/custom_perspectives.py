@@ -34,7 +34,7 @@ def main():
     print(f"Using {len(perspectives)} custom perspectives (including ceiling/floor)")
     print(f"Segmenting '{prompt}'...")
 
-    # Initialize the SAM3 engine (requires panosam[sam] dependencies)
+    # Initialize the SAM3 engine (requires panosam[sam3] dependencies)
     engine = SAM3Engine()
 
     client = ps.PanoSAM(engine=engine, views=perspectives)

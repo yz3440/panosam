@@ -10,15 +10,15 @@ https://github.com/user-attachments/assets/61a546ac-3fce-4c26-b87c-3e09b0e4c331
 ## Installation
 
 ```bash
-pip install "panosam @ git+https://github.com/yz3440/panosam.git"
+pip install panosam[sam3]   # Recommended: includes SAM3 dependencies
 ```
 
-| Extra    | Dependencies                                    | Use Case              |
-| -------- | ----------------------------------------------- | --------------------- |
-| (none)   | pillow, numpy, geopandas, shapely, py360convert | Bring your own engine |
-| `[sam]`  | + torch, transformers, opencv                   | SAM3 segmentation     |
-| `[viz]`  | + opencv, matplotlib                            | Visualization         |
-| `[full]` | sam + viz                                       | All features          |
+| Extra    | Command                     | Use Case              |
+| -------- | --------------------------- | --------------------- |
+| (none)   | `pip install panosam`       | Bring your own engine |
+| `[sam3]` | `pip install panosam[sam3]` | SAM3 segmentation     |
+| `[viz]`  | `pip install panosam[viz]`  | Visualization         |
+| `[full]` | `pip install panosam[full]` | All features          |
 
 SAM3 requires HuggingFace authentication:
 

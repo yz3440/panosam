@@ -10,10 +10,10 @@ PanoSAM uses dependency injection for segmentation engines. Provide any object w
 
 ## SAM3Engine
 
-The built-in engine using Meta's SAM3 model. Requires the `[sam]` extra.
+The built-in engine using Meta's SAM3 model. Requires the `[sam3]` extra.
 
 ```bash
-pip install "panosam[sam] @ git+https://github.com/yz3440/panosam.git"
+pip install "panosam[sam3]"
 ```
 
 ::: panosam.engines.sam3.SAM3Engine

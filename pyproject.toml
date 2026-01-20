@@ -32,8 +32,8 @@ classifiers = [
 keywords = ["sam3", "segmentation", "panorama", "equirectangular", "360", "computer-vision"]
 
 [project.optional-dependencies]
-# SAM3 segmentation dependencies - install with: pip install "panosam[sam]"
-sam = [
+# SAM3 segmentation dependencies - install with: pip install "panosam[sam3]"
+sam3 = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
     # SAM3 requires transformers 5.0+ (currently in prerelease)
@@ -47,7 +47,7 @@ viz = [
     "matplotlib>=3.7.0",
 ]
 # Full install with all features
-full = ["panosam[sam,viz]"]
+full = ["panosam[sam3,viz]"]
 # Documentation dependencies - install with: pip install "panosam[docs]"
 docs = [
     "mkdocs>=1.5.0",

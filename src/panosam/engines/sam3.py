@@ -1,7 +1,7 @@
 """SAM3 Engine using HuggingFace Transformers.
 
 This module provides the SAM3Engine for segmentation using Meta's SAM3 model.
-Requires the [sam] extra: pip install "panosam[sam]"
+Requires the [sam3] extra: pip install "panosam[sam3]"
 """
 
 from typing import List, Optional, Tuple, TYPE_CHECKING
@@ -34,7 +34,7 @@ def _check_sam_dependencies():
         raise ImportError(
             f"SAM3 dependencies not installed: {', '.join(missing)}\n\n"
             "Install with:\n"
-            "  pip install 'panosam[sam]'\n\n"
+            "  pip install 'panosam[sam3]'\n\n"
             "Then login to HuggingFace (required for SAM3 model access):\n"
             "  huggingface-cli login\n\n"
             "You must also accept the SAM3 license at:\n"
@@ -54,7 +54,7 @@ class SAM3Engine:
         device: The device to run inference on (cuda, mps, or cpu).
 
     Note:
-        Requires SAM3 dependencies. Install with: pip install "panosam[sam]"
+        Requires SAM3 dependencies. Install with: pip install "panosam[sam3]"
         Also requires HuggingFace login: huggingface-cli login
     """
 

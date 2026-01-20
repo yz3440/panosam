@@ -24,7 +24,7 @@ def main():
 
     print(f"Running multi-scale segmentation for '{prompt}'...")
 
-    # Initialize the SAM3 engine (requires panosam[sam] dependencies)
+    # Initialize the SAM3 engine (requires panosam[sam3] dependencies)
     engine = SAM3Engine()
 
     # Combine zoomed_out (large objects) and wideangle (very large objects)

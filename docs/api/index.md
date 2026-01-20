@@ -32,7 +32,7 @@ panosam/
 │   ├── client.py     # PanoSAM
 │   └── models.py     # SegmentationResult, options, SegmentationEngine protocol
 ├── engines/          # Segmentation engines (lazily imported)
-│   └── sam3.py       # SAM3Engine (requires [sam])
+│   └── sam3.py       # SAM3Engine (requires [sam3])
 ├── sam/              # Mask models
 │   ├── models.py     # FlatMaskResult, SphereMaskResult
 │   └── utils.py      # Visualization (requires [viz])

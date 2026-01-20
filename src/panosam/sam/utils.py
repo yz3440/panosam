@@ -1,7 +1,7 @@
 """Utility functions for SAM3 mask processing and visualization.
 
 Note: These functions require optional dependencies:
-- extract_mask_contours: requires opencv-python (part of [sam] extra)
+- extract_mask_contours: requires opencv-python (part of [sam3] extra)
 - visualize_masks: requires opencv-python + matplotlib (part of [viz] extra)
 - visualize_sphere_masks: requires opencv-python + matplotlib (part of [viz] extra)
 """
@@ -21,7 +21,7 @@ def _check_cv2():
         raise ImportError(
             "opencv-python is required for this function.\n"
             "Install with: pip install opencv-python\n"
-            "Or install panosam with SAM3 support: pip install 'panosam[sam]'"
+            "Or install panosam with SAM3 support: pip install 'panosam[sam3]'"
         )
 
 

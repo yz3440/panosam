@@ -24,7 +24,7 @@ def main():
 
     print(f"Segmenting '{prompt}' in {image_path}...")
 
-    # Initialize the SAM3 engine (requires panosam[sam] dependencies)
+    # Initialize the SAM3 engine (requires panosam[sam3] dependencies)
     engine = SAM3Engine()
 
     # Create the client with the engine

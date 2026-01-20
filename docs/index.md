@@ -9,7 +9,7 @@ SAM3 segmentation for equirectangular panorama images. Handles perspective proje
 pip install "panosam @ git+https://github.com/yz3440/panosam.git"
 
 # With SAM3
-pip install "panosam[sam] @ git+https://github.com/yz3440/panosam.git"
+pip install "panosam[sam3]"
 
 # With visualization
 pip install "panosam[full] @ git+https://github.com/yz3440/panosam.git"
